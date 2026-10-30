@@ -1,0 +1,19 @@
+{
+  "name": "djjs-itam-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DJJS IT Asset Management — Express + MongoDB API",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "seed": "node src/seed.js",
+    "create-admin": "node src/createAdmin.js"
+  },
+  "engines": { "node": ">=20.12" },
+  "dependencies": {
+    "express": "^4.21.2",
+    "mongoose": "^8.9.5"
+  }
+}

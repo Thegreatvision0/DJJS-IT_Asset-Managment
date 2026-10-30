@@ -1,0 +1,20 @@
+# Runs MongoDB + the app on one machine: docker compose up -d --build
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes: [ "mongo-data:/data/db" ]
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on: [ mongo ]
+    ports: [ "5000:5000" ]
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://mongo:27017/djjs_itam
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in a .env file next to docker-compose.yml}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe@123}
+      TZ: Asia/Kolkata
+volumes:
+  mongo-data:
