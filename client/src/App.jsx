@@ -14,6 +14,7 @@ import Roles from './pages/Roles.jsx';
 import Racks from './pages/Racks.jsx';
 import Login from './pages/Login.jsx';
 import Field from './components/Field.jsx';
+import { Emblem } from './components/Brand.jsx';
 
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['alerts', 'Expiry & Alerts']]],
@@ -29,7 +30,7 @@ const NAV = [
 export const VIEW_TITLE = { dashboard: 'Dashboard', alerts: 'Expiry & Alerts', reports: 'Reports', audit: 'Audit Log', settings: 'Settings & Masters', roles: 'Roles & Permissions', racks: 'Rack Layout' };
 const PAGES = { dashboard: Dashboard, alerts: Alerts, reports: Reports, audit: AuditLog, settings: Settings, roles: Roles, racks: Racks };
 
-function Sidebar({ view, params, open, onNav }) {
+function Sidebar({ view, params, open, onNav, foot }) {
   const { can } = useApp(); const [navOpen, setNavOpen] = useState(params.grp || '');
   useEffect(() => { if (params.grp) setNavOpen(params.grp); }, [params.grp]);
   const c = {
@@ -41,8 +42,8 @@ function Sidebar({ view, params, open, onNav }) {
   };
   const cnt = {}; DB.assets.forEach(a => cnt[a.categoryId] = (cnt[a.categoryId] || 0) + 1);
   const go = (v, p) => { onNav(); navigate(v, p); };
-  return <aside className={'side' + (open ? ' open' : '')}>
-    <div className="brand"><b><span className="logo">DJJS</span>IT Asset Management</b><span>Data Centre · Network · Assets</span></div>
+  return <aside className={'side' + (open ? ' open' : '')} id="sidenav">
+    <div className="brand"><Emblem size={44} /><div><b className="gold-text">DJJS</b><em>IT Asset Management</em><span>IT Department · Nurmahal</span></div><button className="close" onClick={onNav} aria-label="Close menu">✕</button></div>
     {NAV.map(([g, items]) => { const vis = items.filter(([k]) => can(k, 'v')); if (!vis.length) return null; return <React.Fragment key={g}>
       <div className="grp">{g}</div>
       {vis.map(([k, l]) => <React.Fragment key={k}>
@@ -53,6 +54,7 @@ function Sidebar({ view, params, open, onNav }) {
         </React.Fragment>; })}
       </React.Fragment>)}
     </React.Fragment>; })}
+    {foot}
   </aside>;
 }
 
@@ -68,6 +70,11 @@ export default function App() {
   const { me, ready, load, logout, can, openModal, db } = useApp();
   const { view, params } = useRoute(); const [menu, setMenu] = useState(false); const [booting, setBooting] = useState(true);
   useEffect(() => { if (!hasToken()) { setBooting(false); return; } load().catch(() => { }).finally(() => setBooting(false)); }, []);
+  useEffect(() => { // mobile drawer: Esc closes it, page behind it doesn't scroll
+    if (!menu) return; const k = e => { if (e.key === 'Escape') setMenu(false); };
+    document.addEventListener('keydown', k); document.body.classList.add('noscroll');
+    return () => { document.removeEventListener('keydown', k); document.body.classList.remove('noscroll'); };
+  }, [menu]);
   if (booting) return <div className="spinner">Loading…</div>;
   if (!me || !ready) return <Login />;
   let v = view;
@@ -75,15 +82,19 @@ export default function App() {
   const Page = PAGES[v];
   const role = (db.roles || []).find(r => r.id === me.roleId);
   const title = v === 'assets' && params.grp ? (params.cat || params.grp) : (VIEW_TITLE[v] || MODS[v].title);
+  const pw = () => { setMenu(false); openModal(<ChangePassword />); };
+  const foot = <div className="side-foot"><b>{me.name}</b><span>{role ? role.name : ''}</span>
+    <div><button className="btn sm" onClick={pw}>Change Password</button><button className="btn sm" onClick={() => logout()}>Logout</button></div></div>;
   return <div className="app">
-    <Sidebar view={v} params={params} open={menu} onNav={() => setMenu(false)} />
+    <Sidebar view={v} params={params} open={menu} onNav={() => setMenu(false)} foot={foot} />
+    <div className={'scrim' + (menu ? ' show' : '')} onClick={() => setMenu(false)} />
     <div className="main">
       <div className="top">
-        <button className="menu" onClick={() => setMenu(!menu)} aria-label="Menu">&#9776;</button>
-        <h1 id="ptitle">{title}</h1>
+        <button className="menu" onClick={() => setMenu(!menu)} aria-label="Menu" aria-controls="sidenav" aria-expanded={menu}>&#9776;</button>
+        <h1 id="ptitle" title={title}>{title}</h1>
         <div className="who" id="who"><b>{me.name}</b>{role ? role.name : ''}</div>
-        <button className="btn sm" onClick={() => openModal(<ChangePassword />)}>Change Password</button>
-        <button className="btn sm" onClick={() => logout()}>Logout</button>
+        <button className="btn sm top-act" onClick={pw}>Change Password</button>
+        <button className="btn sm top-act" onClick={() => logout()}>Logout</button>
       </div>
       <div className="page" id="page">{Page ? <Page key={v} params={params} /> : <ListPage key={v + JSON.stringify(params)} mod={v} params={params} />}</div>
     </div>

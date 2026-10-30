@@ -92,7 +92,7 @@ export function Modal({ title, wide, children, footer }) {
 }
 export function SimpleTable({ head, rows, empty = 'None' }) {
   if (!rows.length) return <div className="muted">{empty}</div>;
-  return <div className="tw"><table><thead><tr>{head.map((h, i) => <th key={i}>{h}</th>)}</tr></thead><tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody></table></div>;
+  return <div className="tw"><table className="cards"><thead><tr>{head.map((h, i) => <th key={i}>{h}</th>)}</tr></thead><tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} data-label={typeof head[j] === 'string' ? head[j] : ''}>{c}</td>)}</tr>)}</tbody></table></div>;
 }
 export function downloadCSV(rows, name) {
   const csv = rows.map(r => r.map(c => { const s = String(c ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');

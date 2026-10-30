@@ -72,9 +72,9 @@ export default function ListPage({ mod, params }) {
       <button className="btn" onClick={exportCSV}>Export CSV</button>
       {can(mod, 'a') && <button className="btn pri" onClick={() => openModal(<RecordForm mod={mod} preset={cat ? { categoryId: cat } : undefined} />)}>+ New {cat || m.one}</button>}
     </div>
-    <div className="tw"><table className="lst"><thead><tr>{cols.map(f => <th key={f.k} className="srt" onClick={() => setSort({ k: f.k, dir: sort.k === f.k ? -sort.dir : 1 })}>{f.l}{sort.k === f.k ? (sort.dir === -1 ? ' ▼' : ' ▲') : ''}</th>)}<th>Actions</th></tr></thead>
+    <div className="tw"><table className="lst cards"><thead><tr>{cols.map(f => <th key={f.k} className="srt" onClick={() => setSort({ k: f.k, dir: sort.k === f.k ? -sort.dir : 1 })}>{f.l}{sort.k === f.k ? (sort.dir === -1 ? ' ▼' : ' ▲') : ''}</th>)}<th>Actions</th></tr></thead>
       <tbody>{!rows.length && <tr><td colSpan={cols.length + 1} className="empty">No {cat ? cat + ' ' : ''}records yet.</td></tr>}
-        {rows.map(r => <tr key={r.id}>{cols.map(f => <td key={f.k}>{f._sk ? dispText(f, f.calc(r)) : <Cell mod={mod} f={f} r={r} />}</td>)}
+        {rows.map(r => <tr key={r.id}>{cols.map(f => <td key={f.k} data-label={f.l}>{f._sk ? dispText(f, f.calc(r)) : <Cell mod={mod} f={f} r={r} />}</td>)}
           <td className="act">
             {(ACTIONS[mod] || []).filter(a => !a.hidden && (!a.show || a.show(r)) && can(mod, a.perm || 'e')).map(a => <button key={a.id} className="btn sm" onClick={() => rowAction(mod, a, r)}>{a.l}</button>)}
             <button className="btn sm" onClick={() => openModal(<RecordForm mod={mod} id={r.id} view />)}>View</button>

@@ -3,3 +3,4 @@ server/.env
 server/data/
 *.log
 .DS_Store
+client/dist/

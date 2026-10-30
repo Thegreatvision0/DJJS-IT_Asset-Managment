@@ -1,8 +1,9 @@
-import { config } from './config.js';
+import { config, configProblems } from './config.js';
 import { openStore } from './store/index.js';
 import { ensureInitialised } from './service.js';
 import { createApp } from './app.js';
 
+if (configProblems.length) { configProblems.forEach(p => console.error(p)); process.exit(1); }
 const store = await openStore();
 await ensureInitialised(config.adminPassword);
 const app = createApp();

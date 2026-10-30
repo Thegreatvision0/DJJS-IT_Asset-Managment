@@ -1,7 +1,14 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import '@fontsource/inter/latin-400.css';
+import '@fontsource/inter/latin-500.css';
+import '@fontsource/inter/latin-600.css';
+import '@fontsource/inter/latin-700.css';
+import '@fontsource/cinzel/latin-600.css';
+import '@fontsource/cinzel/latin-700.css';
 import { AppProvider } from './lib.jsx';
 import App from './App.jsx';
+import { Intro } from './components/Brand.jsx';
 import './styles.css';
 
-createRoot(document.getElementById('root')).render(<AppProvider><App /></AppProvider>);
+createRoot(document.getElementById('root')).render(<AppProvider><App /><Intro /></AppProvider>);

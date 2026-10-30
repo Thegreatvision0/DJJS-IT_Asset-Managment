@@ -17,10 +17,17 @@ export const config = {
   tokenHours: Number(env.TOKEN_HOURS) || 12,
   adminPassword: env.ADMIN_PASSWORD || '',
   clientDist: path.resolve(here, '../../client/dist'),
-  production: env.NODE_ENV === 'production',
+  production: env.NODE_ENV === 'production' || !!env.VERCEL,
+  serverless: !!env.VERCEL,
 };
+/** settings that must be fixed before the app can serve requests (empty when all is well) */
+export const configProblems = [];
 if (!config.jwtSecret || config.jwtSecret.startsWith('change-this')) {
-  if (config.production) { console.error('JWT_SECRET must be set to a long random value in production.'); process.exit(1); }
-  config.jwtSecret = crypto.randomBytes(32).toString('hex');
-  console.warn('[config] JWT_SECRET not set — using a temporary secret (everyone is logged out on restart).');
+  if (config.production) configProblems.push('JWT_SECRET must be set to a long random value in production.');
+  else {
+    config.jwtSecret = crypto.randomBytes(32).toString('hex');
+    console.warn('[config] JWT_SECRET not set — using a temporary secret (everyone is logged out on restart).');
+  }
 }
+// serverless instances have no lasting disk, so demo (memory) data would vanish
+if (config.serverless && config.store !== 'mongo') configProblems.push('MONGODB_URI must be set on Vercel (demo/memory mode cannot keep data there).');
