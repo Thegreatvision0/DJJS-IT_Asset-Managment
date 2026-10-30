@@ -11,7 +11,8 @@ const env = process.env;
 export const config = {
   port: Number(env.PORT) || 5000,
   mongoUri: env.MONGODB_URI || '',
-  store: env.DATA_STORE || (env.MONGODB_URI ? 'mongo' : 'memory'),
+  // on Vercel there is no lasting disk, so MongoDB is always used when it is configured
+  store: env.VERCEL && env.MONGODB_URI ? 'mongo' : env.DATA_STORE || (env.MONGODB_URI ? 'mongo' : 'memory'),
   dataFile: env.DATA_FILE || '',
   jwtSecret: env.JWT_SECRET || '',
   tokenHours: Number(env.TOKEN_HOURS) || 12,
