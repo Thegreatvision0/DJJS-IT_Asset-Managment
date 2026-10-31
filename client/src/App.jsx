@@ -30,9 +30,9 @@ const NAV = [
 export const VIEW_TITLE = { dashboard: 'Dashboard', alerts: 'Expiry & Alerts', reports: 'Reports', audit: 'Audit Log', settings: 'Settings & Masters', roles: 'Roles & Permissions', racks: 'Rack Layout' };
 const PAGES = { dashboard: Dashboard, alerts: Alerts, reports: Reports, audit: AuditLog, settings: Settings, roles: Roles, racks: Racks };
 
-function Sidebar({ view, params, open, onNav, foot }) {
-  const { can } = useApp(); const [navOpen, setNavOpen] = useState(params.grp || '');
-  useEffect(() => { if (params.grp) setNavOpen(params.grp); }, [params.grp]);
+/* main modules only — asset categories are browsed from the Asset Inventory page */
+function Sidebar({ view, open, onNav, foot }) {
+  const { can } = useApp();
   const c = {
     tempAssignments: DB.tempAssignments.filter(r => dispStatus('tempAssignments', r) === 'Overdue' || r.status === 'Requested').length,
     repairJobs: DB.repairJobs.filter(r => !['Handed Over', 'Beyond Economic Repair', 'Cancelled'].includes(r.status)).length,
@@ -40,19 +40,12 @@ function Sidebar({ view, params, open, onNav, foot }) {
     maintenance: DB.maintenance.filter(r => !['Resolved', 'Closed', 'Cancelled'].includes(r.status)).length,
     alerts: alertItems().filter(a => a.days <= 30).length,
   };
-  const cnt = {}; DB.assets.forEach(a => cnt[a.categoryId] = (cnt[a.categoryId] || 0) + 1);
-  const go = (v, p) => { onNav(); navigate(v, p); };
+  const go = v => { onNav(); navigate(v); };
   return <aside className={'side' + (open ? ' open' : '')} id="sidenav">
     <div className="brand"><Emblem size={44} /><div><b className="gold-text">DJJS</b><em>IT Asset Management</em><span>IT Department · Nurmahal</span></div><button className="close" onClick={onNav} aria-label="Close menu">✕</button></div>
     {NAV.map(([g, items]) => { const vis = items.filter(([k]) => can(k, 'v')); if (!vis.length) return null; return <React.Fragment key={g}>
       <div className="grp">{g}</div>
-      {vis.map(([k, l]) => <React.Fragment key={k}>
-        <a className={'nav' + (view === k && !(k === 'assets' && params.grp) ? ' on' : '')} onClick={() => go(k)}>{l}{c[k] ? <span className="cnt">{c[k]}</span> : k === 'assets' ? <span className="cnt2">{DB.assets.length}</span> : null}</a>
-        {k === 'assets' && Object.entries(DB.masters.catGroups).map(([grp, cats]) => { const n = cats.reduce((s, x) => s + (cnt[x] || 0), 0); const op = navOpen === grp; return <React.Fragment key={grp}>
-          <a className={'nav sub' + (op ? ' open' : '') + (view === 'assets' && params.grp === grp && !params.cat ? ' on' : '')} onClick={() => { if (op && view === 'assets' && params.grp === grp && !params.cat) setNavOpen(''); else { setNavOpen(grp); go('assets', { grp }); } }}>{grp}<span className="cnt2">{n}</span></a>
-          {op && cats.map(cat => <a key={cat} className={'nav sub2' + (cnt[cat] ? '' : ' zero') + (view === 'assets' && params.cat === cat ? ' on' : '')} onClick={() => go('assets', { grp, cat })}>{cat}{cnt[cat] ? <span className="cnt2">{cnt[cat]}</span> : null}</a>)}
-        </React.Fragment>; })}
-      </React.Fragment>)}
+      {vis.map(([k, l]) => <a key={k} className={'nav' + (view === k ? ' on' : '')} aria-current={view === k ? 'page' : undefined} onClick={() => go(k)}>{l}{c[k] ? <span className="cnt">{c[k]}</span> : k === 'assets' ? <span className="cnt2">{DB.assets.length}</span> : null}</a>)}
     </React.Fragment>; })}
     {foot}
   </aside>;
@@ -86,7 +79,7 @@ export default function App() {
   const foot = <div className="side-foot"><b>{me.name}</b><span>{role ? role.name : ''}</span>
     <div><button className="btn sm" onClick={pw}>Change Password</button><button className="btn sm" onClick={() => logout()}>Logout</button></div></div>;
   return <div className="app">
-    <Sidebar view={v} params={params} open={menu} onNav={() => setMenu(false)} foot={foot} />
+    <Sidebar view={v} open={menu} onNav={() => setMenu(false)} foot={foot} />
     <div className={'scrim' + (menu ? ' show' : '')} onClick={() => setMenu(false)} />
     <div className="main">
       <div className="top">
