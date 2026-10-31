@@ -9,6 +9,7 @@
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
     "build": "npm run build --prefix client",
+    "release": "node scripts/release.mjs",
     "start": "npm start --prefix server",
     "seed": "npm run seed --prefix server",
     "create-admin": "npm run create-admin --prefix server --"
