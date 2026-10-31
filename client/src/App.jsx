@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { DB, dispStatus } from '@shared/core.js';
 import { MODS, PERMS } from '@shared/modules.js';
 import { alertItems } from '@shared/insights.js';
-import { api, useApp, Modal, hasToken } from './lib.jsx';
+import { useApp, hasToken } from './lib.jsx';
 import { useRoute, navigate } from './router.js';
 import ListPage from './pages/ListPage.jsx';
 import Dashboard from './pages/Dashboard.jsx';
@@ -13,7 +13,6 @@ import Settings from './pages/Settings.jsx';
 import Roles from './pages/Roles.jsx';
 import Racks from './pages/Racks.jsx';
 import Login from './pages/Login.jsx';
-import Field from './components/Field.jsx';
 import { Emblem } from './components/Brand.jsx';
 
 const NAV = [
@@ -51,16 +50,8 @@ function Sidebar({ view, open, onNav, foot }) {
   </aside>;
 }
 
-function ChangePassword() {
-  const { closeModal, toast, putToken, setMe, me } = useApp(); const [v, setV] = useState({ old: '', pw: '', pw2: '' }); const [err, setErr] = useState('');
-  const save = async () => { if (v.pw.length < 6) return setErr('Password must be at least 6 characters'); if (v.pw !== v.pw2) return setErr('Passwords do not match'); try { const r = await api('/auth/change-password', { method: 'POST', body: { old: v.old, pw: v.pw } }); putToken(r.token); setMe(r.user); closeModal(); toast('Password changed'); } catch (e) { setErr(e.message); } };
-  const F = (k, l) => <Field f={{ k, l, t: 'password', r: 1 }} value={v[k]} onChange={x => setV(p => ({ ...p, [k]: x }))} required />;
-  return <Modal title={'Change Password — ' + me.username} footer={<><button className="btn" onClick={closeModal}>Cancel</button><button className="btn pri" id="miniSave" onClick={save}>Save</button></>}>
-    {err && <div className="err" style={{ display: 'block' }}>{err}</div>}<div className="fg">{F('old', 'Current Password')}{F('pw', 'New Password')}{F('pw2', 'Confirm New Password')}</div></Modal>;
-}
-
 export default function App() {
-  const { me, ready, load, logout, can, openModal, db } = useApp();
+  const { me, ready, load, logout, can, db } = useApp();
   const { view, params } = useRoute(); const [menu, setMenu] = useState(false); const [booting, setBooting] = useState(true);
   useEffect(() => { if (!hasToken()) { setBooting(false); return; } load().catch(() => { }).finally(() => setBooting(false)); }, []);
   useEffect(() => { // mobile drawer: Esc closes it, page behind it doesn't scroll
@@ -75,9 +66,8 @@ export default function App() {
   const Page = PAGES[v];
   const role = (db.roles || []).find(r => r.id === me.roleId);
   const title = v === 'assets' && params.grp ? (params.cat || params.grp) : (VIEW_TITLE[v] || MODS[v].title);
-  const pw = () => { setMenu(false); openModal(<ChangePassword />); };
   const foot = <div className="side-foot"><b>{me.name}</b><span>{role ? role.name : ''}</span>
-    <div><button className="btn sm" onClick={pw}>Change Password</button><button className="btn sm" onClick={() => logout()}>Logout</button></div></div>;
+    <div><button className="btn sm" onClick={() => logout()}>Logout</button></div></div>;
   return <div className="app">
     <Sidebar view={v} open={menu} onNav={() => setMenu(false)} foot={foot} />
     <div className={'scrim' + (menu ? ' show' : '')} onClick={() => setMenu(false)} />
@@ -86,7 +76,6 @@ export default function App() {
         <button className="menu" onClick={() => setMenu(!menu)} aria-label="Menu" aria-controls="sidenav" aria-expanded={menu}>&#9776;</button>
         <h1 id="ptitle" title={title}>{title}</h1>
         <div className="who" id="who"><b>{me.name}</b>{role ? role.name : ''}</div>
-        <button className="btn sm top-act" onClick={pw}>Change Password</button>
         <button className="btn sm top-act" onClick={() => logout()}>Logout</button>
       </div>
       <div className="page" id="page">{Page ? <Page key={v} params={params} /> : <ListPage key={v + JSON.stringify(params)} mod={v} params={params} />}</div>
