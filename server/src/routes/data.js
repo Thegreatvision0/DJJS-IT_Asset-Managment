@@ -2,7 +2,7 @@ import express from 'express';
 import { getStore } from '../store/index.js';
 import { requireAuth } from '../auth.js';
 import { MODS } from '../../../shared/modules.js';
-import { loadDataset, can, publicUser, saveRecord, deleteRecord, runAction, patchSettings, addComboValue, saveRole, deleteRole, restoreBackup, HttpError } from '../service.js';
+import { can, publicUser, saveRecord, deleteRecord, runAction, patchSettings, addComboValue, saveRole, deleteRole, restoreBackup, HttpError } from '../service.js';
 
 const r = express.Router();
 r.use(requireAuth);
@@ -13,7 +13,7 @@ const MIN = ['id', 'name', 'siteName', 'parentId', 'type', 'status', 'categoryId
 const pick = (o, keys) => { const x = {}; keys.forEach(k => { if (o[k] !== undefined) x[k] = o[k]; }); return x; };
 
 r.get('/bootstrap', (req, res, next) => send(res, next)((async () => {
-  const db = await loadDataset(); const u = req.user; const data = {};
+  const db = req.db; const u = req.user; const data = {};
   Object.keys(MODS).forEach(m => {
     if (m === 'users') data.users = can(db, u, 'users', 'v') ? db.users.map(publicUser) : db.users.map(x => pick(x, ['id', 'name', 'active', 'department', 'roleId']));
     else if (m === 'roles') data.roles = db.roles;
@@ -29,7 +29,7 @@ r.put('/roles/:id', (req, res, next) => send(res, next)(saveRole(req.params.id, 
 r.delete('/roles/:id', (req, res, next) => send(res, next)(deleteRole(req.params.id, req.user)));
 
 r.get('/audit', (req, res, next) => send(res, next)((async () => {
-  const db = await loadDataset(); const { q, user, ref, limit } = req.query;
+  const db = req.db; const { q, user, ref, limit } = req.query;
   if (!can(db, req.user, 'audit', 'v')) {
     if (!ref || !can(db, req.user, 'assets', 'v')) throw new HttpError(403, 'You do not have access to the audit log');
   }
@@ -37,7 +37,7 @@ r.get('/audit', (req, res, next) => send(res, next)((async () => {
 })()));
 
 r.get('/backup', (req, res, next) => send(res, next)((async () => {
-  const db = await loadDataset(); if (!(db.roles.find(x => x.id === req.user.roleId) || {}).all) throw new HttpError(403, 'Only a System Administrator can export a full backup');
+  const db = req.db; if (!(db.roles.find(x => x.id === req.user.roleId) || {}).all) throw new HttpError(403, 'Only a System Administrator can export a full backup');
   const out = { ver: 3, exportedAt: new Date().toISOString(), masters: db.masters }; Object.keys(MODS).forEach(m => out[m] = db[m]);
   out.audit = await getStore().listAudit({ limit: 3000 }); return out;
 })()));

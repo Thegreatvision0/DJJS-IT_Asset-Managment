@@ -33,6 +33,7 @@ export function fieldVisible(mod, f, vals, opt = {}) {
 }
 export function fieldRequired(mod, f, vals) {
   if (f.ro || f.t === 'calc' || f.viewOnly) return false;
+  if (typeof f.r === 'function') return !!f.r(vals); // required only in some cases
   if (f.r) return true;
   if (f.std && vals.categoryId) {
     if (profile(vals.categoryId).req.includes(f.k)) return true;
@@ -52,7 +53,11 @@ export function normalize(mod, raw, old) {
     if (f.t === 'calc') return;
     let v = vals[f.k];
     if (f.t === 'number') v = v === '' || v == null ? '' : Number(v);
-    else if (f.t === 'table') v = Array.isArray(v) ? v.map(row => { const o = {}; f.cols.forEach(c => { const x = row[c.k]; o[c.k] = c.t === 'number' ? (x === '' || x == null ? '' : Number(x)) : String(x ?? '').trim(); }); return o; }).filter(o => f.cols.some(c => c.k !== 'qty' && o[c.k] !== '' && o[c.k] != null)) : [];
+    else if (f.t === 'table') v = Array.isArray(v) ? v.map(row => {
+      const o = {}; f.cols.forEach(c => { if (c.t === 'calc') return; const x = row[c.k]; o[c.k] = c.t === 'number' ? (x === '' || x == null ? '' : Number(x)) : String(x ?? '').trim(); });
+      f.cols.forEach(c => { if (c.t === 'calc') o[c.k] = c.calc(o); }); // e.g. amount = qty × unit price
+      return o;
+    }).filter(o => f.cols.some(c => c.k !== 'qty' && c.t !== 'calc' && o[c.k] !== '' && o[c.k] != null)) : [];
     else if (f.t === 'multiref') v = Array.isArray(v) ? v.map(String) : [];
     else if (f.t === 'password') v = String(v ?? '');
     else v = v == null ? '' : String(v).trim();
@@ -84,6 +89,11 @@ export function validateFields(mod, data, old) {
     const v = data[f.k]; const empty = v == null || v === '' || (Array.isArray(v) && !v.length);
     if (fieldRequired(mod, f, data) && empty) { errors.push(f.l + ' is required'); bad.push(f.k); }
     else if (!empty) { const e = checkV(f, v); if (e) { errors.push(e); bad.push(f.k); } }
+    if (f.t === 'table' && Array.isArray(v)) v.forEach((row, i) => f.cols.forEach(c => { // per-row required / numeric checks
+      const x = row[c.k];
+      if (c.r && (x === '' || x == null || (c.t === 'number' && !(num(x) > 0)))) { errors.push(`${f.l} row ${i + 1}: ${c.l} is required`); if (!bad.includes(f.k)) bad.push(f.k); }
+      else if (c.t === 'number' && x !== '' && x != null && num(x) < 0) { errors.push(`${f.l} row ${i + 1}: ${c.l} cannot be negative`); if (!bad.includes(f.k)) bad.push(f.k); }
+    }));
   });
   if (mod === 'assets' && data.categoryId) visibleSpecs(data.categoryId, data.specs).forEach(f => {
     if (f.t === 'calc') return; const v = (data.specs || {})[f.k];

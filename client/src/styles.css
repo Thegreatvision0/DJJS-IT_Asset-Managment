@@ -141,6 +141,11 @@ td.act .btn{margin:1px 2px}
 .tblf table td{padding:4px}
 .tblf input,.tblf select{width:100%;min-width:70px;padding:5px 6px;border:1px solid #d0d5dd;border-radius:5px;font:inherit;font-size:12.5px;background:#fff}
 .tblf .tfoot{display:flex;justify-content:space-between;align-items:center;padding:6px;border-top:1px solid var(--line);font-size:12.5px}
+.tblf th.num,.tblf input.num{text-align:right}
+.tblf th .req{color:var(--bad);font-style:normal}
+.tblf .tcalc{display:block;text-align:right;font-weight:600;color:var(--navy);padding:5px 6px;background:#f2f6fb;border-radius:5px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tblf .ttotal{font-size:13px;color:var(--muted)}
+.tblf .ttotal b{font-size:15px;color:var(--navy);margin-left:4px;font-variant-numeric:tabular-nums}
 .chk{max-height:190px;overflow:auto;border:1px solid #d0d5dd;border-radius:6px;padding:6px 10px;background:#fff}
 .chk label{display:flex;gap:8px;align-items:center;font-weight:400 !important;font-size:13px !important;padding:3px 0}
 .chk input{width:auto !important}

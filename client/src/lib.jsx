@@ -94,9 +94,57 @@ export function SimpleTable({ head, rows, empty = 'None' }) {
   if (!rows.length) return <div className="muted">{empty}</div>;
   return <div className="tw"><table className="cards"><thead><tr>{head.map((h, i) => <th key={i}>{h}</th>)}</tr></thead><tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} data-label={typeof head[j] === 'string' ? head[j] : ''}>{c}</td>)}</tr>)}</tbody></table></div>;
 }
-export function downloadCSV(rows, name) {
-  const csv = rows.map(r => r.map(c => { const s = String(c ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv' })); a.download = name + '_' + new Date().toISOString().slice(0, 10) + '.csv'; a.click();
+/* ---------- Excel export ----------
+   rows[0] = headings, rest = data. Numbers stay numeric (right-aligned, ₹ format for money columns); text wraps.
+   ExcelJS is loaded only when someone exports, so it does not slow the app down. */
+const MONEY_HEAD = /₹|amount|cost|price|value|quote|total|labour/i;
+export async function downloadXLSX(rows, name, title) {
+  const { default: ExcelJS } = await import('exceljs/dist/exceljs.min.js');
+  const head = rows[0].map(h => String(h ?? '')), body = rows.slice(1), n = Math.max(1, head.length);
+  const wb = new ExcelJS.Workbook(); wb.creator = 'DJJS IT Asset Management'; wb.created = new Date();
+  const ws = wb.addWorksheet(String(title || name).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Sheet1', {
+    views: [{ state: 'frozen', ySplit: 4 }],
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9, margins: { left: .4, right: .4, top: .5, bottom: .5, header: .3, footer: .3 } },
+    headerFooter: { oddFooter: '&L&8DJJS IT Asset Management&R&8Page &P of &N' },
+  });
+  const NAVY = 'FF0F2747', GOLD = 'FFC9A24B', LINE = 'FFD9DEE7', ZEBRA = 'FFF5F7FB';
+  const thin = c => ({ style: 'thin', color: { argb: c } });
+  // title block
+  ws.getCell(1, 1).value = 'Divya Jyoti Jagrati Sansthan — IT Department, Nurmahal';
+  ws.getCell(1, 1).font = { bold: true, size: 14, color: { argb: NAVY } };
+  const stamp = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  ws.getCell(2, 1).value = `${title || name} · ${body.length} record(s) · exported ${stamp}`;
+  ws.getCell(2, 1).font = { italic: true, size: 10, color: { argb: 'FF5F6B80' } };
+  if (n > 1) { ws.mergeCells(1, 1, 1, n); ws.mergeCells(2, 1, 2, n); }
+  ws.getRow(1).height = 22;
+  // highlighted header row
+  const hr = ws.getRow(4); hr.height = 30;
+  head.forEach((h, i) => { const c = hr.getCell(i + 1); c.value = h;
+    c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
+    c.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    c.border = { top: thin(NAVY), left: thin(NAVY), right: thin(NAVY), bottom: { style: 'medium', color: { argb: GOLD } } }; });
+  // data rows: aligned, bordered, striped
+  const widths = head.map(h => Math.min(40, h.length + 4));
+  body.forEach((r, ri) => {
+    const row = ws.getRow(5 + ri);
+    for (let i = 0; i < n; i++) {
+      let v = r[i]; const c = row.getCell(i + 1); const isNum = typeof v === 'number' && isFinite(v);
+      if (v == null) v = ''; c.value = isNum ? v : String(v);
+      c.alignment = { vertical: 'top', horizontal: isNum ? 'right' : 'left', wrapText: true };
+      if (isNum) c.numFmt = MONEY_HEAD.test(head[i] || '') ? '"₹"#,##0.00' : Number.isInteger(v) ? '0' : '0.00';
+      c.border = { top: thin(LINE), left: thin(LINE), right: thin(LINE), bottom: thin(LINE) };
+      if (ri % 2) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: ZEBRA } };
+      const longest = String(isNum ? v.toLocaleString('en-IN') + (MONEY_HEAD.test(head[i] || '') ? '.00₹' : '') : v).split('\n').reduce((m, l) => Math.max(m, l.length), 0);
+      widths[i] = Math.max(widths[i], Math.min(60, longest + 2));
+    }
+  });
+  ws.columns.forEach((col, i) => { col.width = Math.max(8, widths[i] || 10); });
+  if (head.length) ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + body.length, column: n } };
+  const buf = await wb.xlsx.writeBuffer();
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  a.download = String(name).replace(/[^\w-]+/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 const escH = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export function printSlip(title, no, rows, signs, by) {

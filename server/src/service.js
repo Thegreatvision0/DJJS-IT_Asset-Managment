@@ -4,18 +4,54 @@ import { setDB, uid, clone, today, DEFAULT_MASTERS, COMBO_KEYS, specsFor, DEFAUL
 import { MODS, PERMS, canRole } from '../../shared/modules.js';
 import { normalize, validateFields, HOOKS, findAction, ConfirmNeeded, refOf, nextNo, refCount, isLastAdmin } from '../../shared/engine.js';
 import { upgrade, defaultRoles } from '../../shared/seed.js';
-import { getStore } from './store/index.js';
+import { getStore, onWrite } from './store/index.js';
 import { hashPassword, isScryptHash } from './security.js';
 
 export class HttpError extends Error { constructor(status, msg, extra) { super(msg); this.status = status; this.extra = extra; } }
 
-let queue = Promise.resolve();
-export function serial(fn) { const p = queue.then(fn, fn); queue = p.catch(() => { }); return p; }
+/* ---------- dataset cache ----------
+   Re-reading every collection on each request is slow against a remote database. The cache keeps the last
+   dataset and the store's revision number; a request checks only the revision (one tiny read) and re-reads
+   everything when it changed. The cache is updated only with what was actually written, and any write it
+   cannot account for (another server instance, a script, a write outside a job) drops it. */
+let cache = null; // { db, rev }
+let job = null;   // the running serial job: { base, revs, ops }
+onWrite((rev, method, args) => { if (job) { job.revs.push(rev); job.ops.push([method, args]); } });
 
+function commitJob(j) {
+  if (!j.base || cache !== j.base) return;
+  const revs = j.revs.slice().sort((a, b) => a - b);
+  const ours = revs.length && revs.every((r, i) => r === j.base.rev + 1 + i) && j.ops.every(([m]) => m !== 'replaceAll');
+  if (!ours) { cache = null; return; }
+  const d = j.base.db;
+  j.ops.forEach(([m, args]) => {
+    if (m === 'saveDocs') { const [col, docs] = args; d[col] = d[col] || []; docs.forEach(doc => { const c = clone(doc), i = d[col].findIndex(x => x.id === c.id); if (i >= 0) d[col][i] = c; else d[col].push(c); }); }
+    else if (m === 'deleteDoc') { const [col, id] = args; d[col] = (d[col] || []).filter(x => x.id !== id); }
+    else if (m === 'saveSettings') { d.masters = clone(args[0]); d.ver = args[1]; }
+  });
+  j.base.rev = revs[revs.length - 1];
+}
+
+let queue = Promise.resolve();
+export function serial(fn) {
+  const run = async () => {
+    job = { base: cache, revs: [], ops: [] }; const j = job;
+    try { const out = await fn(); commitJob(j); return out; }
+    catch (e) { if (j.revs.length) cache = null; throw e; }
+    finally { job = null; }
+  };
+  const p = queue.then(run, run); queue = p.catch(() => { }); return p;
+}
+
+/** a private copy of the dataset (callers may change it freely) */
 export async function loadDataset() {
-  const d = await getStore().loadAll();
-  d.masters = Object.assign(clone(DEFAULT_MASTERS), { catGroups: clone(DEFAULT_CAT_GROUPS), customSpecs: {}, catFields: {}, hiddenSpecs: {} }, d.masters || {});
-  setDB(d); return d;
+  const st = getStore(); const rev = await st.getRev();
+  if (!cache || cache.rev !== rev) {
+    const d = await st.loadAll();
+    d.masters = Object.assign(clone(DEFAULT_MASTERS), { catGroups: clone(DEFAULT_CAT_GROUPS), customSpecs: {}, catFields: {}, hiddenSpecs: {} }, d.masters || {});
+    cache = { db: d, rev };
+  }
+  const d = structuredClone(cache.db); setDB(d); return d;
 }
 export const can = (db, user, mod, act) => canRole(db.roles, user, mod, act);
 export const publicUser = u => { if (!u) return u; const { pwHash, ...rest } = u; return rest; };
@@ -35,8 +71,8 @@ function makeCtx(db, user, confirmed) {
 }
 async function persist(touched, audits) {
   const st = getStore(); const changed = {};
-  for (const [col, map] of Object.entries(touched)) { const docs = [...map.values()]; await st.saveDocs(col, docs); changed[col] = docs.map(d => col === 'users' ? publicUser(d) : d); }
-  await st.addAudit(audits); return changed;
+  const writes = Object.entries(touched).map(([col, map]) => { const docs = [...map.values()]; changed[col] = docs.map(d => col === 'users' ? publicUser(d) : d); return st.saveDocs(col, docs); });
+  await Promise.all([...writes, st.addAudit(audits)]); return changed;
 }
 function wrapConfirm(fn) { try { return fn(); } catch (e) { if (e instanceof ConfirmNeeded) throw new HttpError(409, e.confirm, { confirm: e.confirm }); throw e; } }
 

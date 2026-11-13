@@ -26,7 +26,7 @@ export function dispText(f, v) {
     case 'ref': return label(f.c, v);
     case 'aref': return tagOf(v) ? tagOf(v) + ' — ' + (getA(v) || {}).name : '(deleted)';
     case 'multiref': return v.map(id => tagOf(id) || '?').join(', ');
-    case 'table': return v.length + ' item(s): ' + v.map(p => p.part || p.partType).filter(Boolean).join(', ');
+    case 'table': { const k0 = f.cols && f.cols[0] && f.cols[0].k; return v.length + ' item(s): ' + v.map(p => (k0 && p[k0]) || p.part || p.partType).filter(Boolean).join(', '); }
     case 'date': return fmtD(v);
     case 'datetime': return fmtDT(v);
     case 'number': case 'calc': return calcText(f, v);

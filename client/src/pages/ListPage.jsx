@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { DB, M, uniq, dispStatus, label, profile, specsFor, catGroupOf, STD_LABEL, GROUP_COLOR } from '@shared/core.js';
 import { MODS } from '@shared/modules.js';
 import { ACTIONS, refOf } from '@shared/engine.js';
-import { api, useApp, Badge, downloadCSV } from '../lib.jsx';
+import { api, useApp, Badge, downloadXLSX } from '../lib.jsx';
 import { navigate } from '../router.js';
 import RecordForm from '../components/RecordForm.jsx';
 import { Cell, dispText, useRowAction } from '../components/Details.jsx';
@@ -50,10 +50,16 @@ export default function ListPage({ mod, params }) {
     if (!window.confirm(`Delete this ${m.one} (${refOf(mod, r)})? This cannot be undone.`)) return;
     try { await mutate(() => api(`/${mod}/${r.id}`, { method: 'DELETE' }), { quiet: true }); toast('Deleted'); } catch (e) { toast(e.message, 1); }
   };
-  const exportCSV = () => {
+  const [exporting, setExporting] = useState(false);
+  // numbers stay numeric in Excel (right-aligned, summable); everything else as displayed text
+  const xv = (f, v) => (f.t === 'number' || f.t === 'calc') && v !== '' && v != null && typeof v !== 'boolean' && !isNaN(v) ? Number(v) : dispText(f, v);
+  const exportXLSX = async () => {
     const fs = m.fields.filter(f => f.k && f.t !== 'password'); let sp = [];
     if (isA) { const seen = {}; rows.forEach(r => specsFor(r.categoryId).forEach(f => { if (!seen[f.k]) { seen[f.k] = 1; sp.push(f); } })); }
-    downloadCSV([[...fs.map(f => f.l), ...sp.map(f => f.l)], ...rows.map(r => [...fs.map(f => f.k === 'status' ? dispStatus(mod, r) : dispText(f, f.listOnly ? f.calc(r) : r[f.k])), ...sp.map(f => dispText(f, f.t === 'calc' ? f.calc(r.specs || {}, r) : (r.specs || {})[f.k]))])], isA && grp ? (cat || grp).replace(/[^\w]+/g, '_') : mod);
+    const title = isA && (cat || grp) ? (cat || grp) : m.title;
+    setExporting(true);
+    try { await downloadXLSX([[...fs.map(f => f.l), ...sp.map(f => f.l)], ...rows.map(r => [...fs.map(f => f.k === 'status' ? dispStatus(mod, r) : xv(f, f.listOnly ? f.calc(r) : r[f.k])), ...sp.map(f => xv(f, f.t === 'calc' ? f.calc(r.specs || {}, r) : (r.specs || {})[f.k]))])], isA && grp ? (cat || grp) : mod, title); }
+    catch (e) { toast('Export failed: ' + e.message, 1); } finally { setExporting(false); }
   };
   const filterOpts = k => { const f = fmap[k];
     if (k === 'status') return uniq([...(Array.isArray(f.o) ? f.o : M(f.o)), ...DB[mod].map(r => dispStatus(mod, r))]).map(x => [x, x]);
@@ -69,7 +75,7 @@ export default function ListPage({ mod, params }) {
       <input type="search" placeholder={`Search ${(isA && (cat || grp) ? (cat || grp) : m.title).toLowerCase()}…`} value={q} onChange={e => setQ(e.target.value)} />
       {(m.filters || []).filter(k => !(isA && k === 'categoryId' && cat)).map(k => <select key={k} value={filters[k] || ''} onChange={e => setFilters({ ...filters, [k]: e.target.value })}><option value="">All {fmap[k].l}</option>{filterOpts(k).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>)}
       <span className="sp" /><span className="muted">{rows.length} record(s)</span>
-      <button className="btn" onClick={exportCSV}>Export CSV</button>
+      <button className="btn" onClick={exportXLSX} disabled={exporting}>{exporting ? 'Exporting…' : 'Export Excel'}</button>
       {can(mod, 'a') && <button className="btn pri" onClick={() => openModal(<RecordForm mod={mod} preset={cat ? { categoryId: cat } : undefined} />)}>+ New {cat || m.one}</button>}
     </div>
     <div className="tw"><table className="lst cards"><thead><tr>{cols.map(f => <th key={f.k} className="srt" onClick={() => setSort({ k: f.k, dir: sort.k === f.k ? -sort.dir : 1 })}>{f.l}{sort.k === f.k ? (sort.dir === -1 ? ' ▼' : ' ▲') : ''}</th>)}<th>Actions</th></tr></thead>

@@ -13,6 +13,8 @@ export function createMemoryStore(file) {
     name: 'memory',
     async connect() { if (file && fs.existsSync(file)) { db = Object.assign(db, JSON.parse(fs.readFileSync(file, 'utf8'))); } },
     async loadAll() { const r = {}; DATA_COLS.forEach(c => r[c] = cp(db[c])); r.masters = cp(db.masters); r.ver = db.ver; return r; },
+    async getRev() { return db.rev || 0; },
+    async bumpRev() { db.rev = (db.rev || 0) + 1; return db.rev; },
     async getAll(col) { return cp(db[col]); },
     async getDoc(col, id) { const d = db[col].find(x => x.id === id); return d ? cp(d) : null; },
     async saveDocs(col, docs) { docs.forEach(d => { const i = db[col].findIndex(x => x.id === d.id); if (i >= 0) db[col][i] = cp(d); else db[col].push(cp(d)); }); persist(); },

@@ -69,13 +69,19 @@ export default function Field({ f, value, onChange, ctxVals = {}, rec, mod, view
   </div>;
 }
 
+const rupees = n => '₹' + (Math.round(n * 100) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export function TableField({ id, f, rows, onChange, disabled }) {
   const set = (i, k, v) => onChange(rows.map((r, j) => j === i ? { ...r, [k]: v } : r));
-  return <div className="tblf" id={id}><table><thead><tr>{f.cols.map(c => <th key={c.k}>{c.l}</th>)}{!disabled && <th />}</tr></thead>
+  const blank = () => { const r = { qty: 1 }; f.cols.forEach(c => { if (c.def !== undefined) r[c.k] = c.def; }); return r; };
+  const totalCol = f.total && f.cols.find(c => c.k === f.total);
+  const total = totalCol ? rows.reduce((s, r) => s + (Number(totalCol.calc ? totalCol.calc(r) : r[totalCol.k]) || 0), 0) : 0;
+  return <div className="tblf" id={id}><table><thead><tr>{f.cols.map(c => <th key={c.k} className={c.t === 'number' || c.t === 'calc' ? 'num' : ''}>{c.l}{c.r && !disabled ? <i className="req"> *</i> : null}</th>)}{!disabled && <th />}</tr></thead>
     <tbody>{rows.map((r, i) => <tr key={i}>{f.cols.map(c => <td key={c.k} style={c.w ? { minWidth: c.w } : undefined}>
-      {c.t === 'select' ? <Select opts={Array.isArray(c.o) ? c.o : M(c.o)} value={r[c.k]} onChange={v => set(i, c.k, v)} disabled={disabled} />
-        : <input data-c={c.k} type={c.t === 'number' ? 'number' : 'text'} min={c.t === 'number' ? 0 : undefined} step="any" value={r[c.k] ?? ''} disabled={disabled} onChange={e => set(i, c.k, e.target.value)} />}</td>)}
-      {!disabled && <td><button type="button" className="btn sm red" onClick={() => onChange(rows.filter((_, j) => j !== i))}>✕</button></td>}</tr>)}</tbody></table>
-    <div className="tfoot">{disabled ? <span /> : <button type="button" className="btn sm" onClick={() => onChange([...rows, { qty: 1 }])}>+ Add row</button>}<span className="muted">{rows.length ? '' : 'No rows'}</span></div></div>;
+      {c.t === 'calc' ? <span className="tcalc">{rupees(c.calc(r))}</span>
+        : c.t === 'select' ? <Select opts={Array.isArray(c.o) ? c.o : M(c.o)} value={r[c.k]} onChange={v => set(i, c.k, v)} disabled={disabled} />
+        : <input data-c={c.k} className={c.t === 'number' ? 'num' : ''} type={c.t === 'number' ? 'number' : 'text'} min={c.t === 'number' ? 0 : undefined} step="any" value={r[c.k] ?? ''} disabled={disabled} onChange={e => set(i, c.k, e.target.value)} />}</td>)}
+      {!disabled && <td><button type="button" className="btn sm red" onClick={() => onChange(rows.filter((_, j) => j !== i))} aria-label="Remove row">✕</button></td>}</tr>)}</tbody></table>
+    <div className="tfoot">{disabled ? <span /> : <button type="button" className="btn sm" onClick={() => onChange([...rows, blank()])}>+ Add row</button>}
+      {totalCol ? <span className="ttotal">Total: <b>{rupees(total)}</b></span> : <span className="muted">{rows.length ? '' : 'No rows'}</span>}</div></div>;
 }
 export { tagOf };

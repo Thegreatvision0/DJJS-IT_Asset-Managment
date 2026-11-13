@@ -16,6 +16,17 @@ export const PARTS_COLS = [
   { k: 'qty', l: 'Qty', t: 'number', w: 60 }, { k: 'unitCost', l: 'Unit Cost (₹)', t: 'number', w: 90 },
   { k: 'source', l: 'Source', t: 'select', o: ['IT Stock', 'Purchased', 'Vendor Supplied', 'Warranty Replacement', 'AMC (Free)'] },
 ];
+/* purchase order lines: amount = quantity × unit price; the order total is the sum of the lines */
+export const PO_COLS = [
+  { k: 'item', l: 'Item / Description', w: 220, r: 1 },
+  { k: 'qty', l: 'Qty', t: 'number', w: 70, r: 1 },
+  { k: 'unit', l: 'Unit', t: 'select', o: ['Nos', 'Pcs', 'Set', 'Box', 'Pack', 'Pair', 'Metre', 'Roll', 'Kg', 'Litre', 'Licence', 'User', 'Month', 'Year', 'Lot'], def: 'Nos', w: 90 },
+  { k: 'unitPrice', l: 'Unit Price (₹)', t: 'number', w: 110 },
+  { k: 'amount', l: 'Amount (₹)', t: 'calc', calc: r => Math.round(num(r.qty) * num(r.unitPrice) * 100) / 100, w: 110 },
+];
+export const poTotal = lines => Math.round((lines || []).reduce((s, r) => s + num(r.qty) * num(r.unitPrice), 0) * 100) / 100;
+const hasLines = v => Array.isArray(v.lines) && v.lines.length > 0;
+export const isOnlineVendor = v => /^Online/.test(v.vendorMode || '');
 export const isFibre = v => v.linkType === 'Optical Fibre';
 export const isCopper = v => ['Copper (UTP)', 'Uplink / Trunk', 'CCTV Camera → NVR'].includes(v.linkType);
 
@@ -303,19 +314,30 @@ export const MODS = {
     ] },
 
   vendors: { title: 'Vendors', one: 'Vendor', prefix: 'VEN-', numKey: 'code',
-    cols: ['code', 'name', 'serviceCategory', 'contactPerson', 'phone', 'city', 'status'], filters: ['serviceCategory', 'status'],
+    cols: ['code', 'name', 'vendorMode', 'serviceCategory', 'contactPerson', 'phone', 'city', 'status'], filters: ['vendorMode', 'serviceCategory', 'status'],
     fields: [
       { t: 'sec', l: 'Vendor' },
       { k: 'code', l: 'Vendor Code', ro: 1 }, { k: 'name', l: 'Vendor / Company Name', r: 1 },
+      { k: 'vendorMode', l: 'Vendor Type', t: 'select', o: ['Offline (Local Shop / Distributor)', 'Online (Website / Marketplace)'], def: 'Offline (Local Shop / Distributor)', hint: 'Blank = offline (vendors added before this option)' },
       { k: 'serviceCategory', l: 'Service Category', t: 'select', o: 'serviceCategories', r: 1 },
       { k: 'status', l: 'Status', t: 'select', o: ['Active', 'Inactive', 'Blacklisted'], def: 'Active', r: 1 },
       { k: 'gstin', l: 'GSTIN', v: 'gstin', hint: '15 characters, e.g. 03ABCDE1234F1Z5' },
+      { t: 'sec', l: 'Online Store', when: isOnlineVendor },
+      { k: 'platform', l: 'Platform / Marketplace', t: 'select', o: ['Amazon Business', 'Flipkart', 'GeM (Govt e-Marketplace)', 'IndiaMART', 'Vendor’s Own Website', 'Other'], r: 1, when: isOnlineVendor },
+      { k: 'website', l: 'Website / Store Link', v: 'url', r: 1, when: isOnlineVendor, hint: 'e.g. https://www.example.com' },
+      { k: 'storeName', l: 'Seller / Store Name', when: isOnlineVendor },
+      { k: 'accountId', l: 'Our Account / Login ID', when: isOnlineVendor, hint: 'Login ID only — never store passwords here' },
+      { k: 'supportEmail', l: 'Support Email', t: 'email', v: 'email', when: isOnlineVendor },
+      { k: 'supportPhone', l: 'Customer Care Number', t: 'tel', v: 'phone', when: isOnlineVendor },
+      { k: 'paymentMode', l: 'Payment Mode', t: 'select', o: ['Online Payment', 'UPI', 'Net Banking', 'Credit / Debit Card', 'Purchase Order / Invoice', 'Cash on Delivery'], when: isOnlineVendor },
+      { k: 'deliveryDays', l: 'Typical Delivery Time (days)', t: 'number', when: isOnlineVendor },
+      { k: 'returnPolicy', l: 'Return / Warranty Policy', t: 'textarea', full: 1, when: isOnlineVendor },
       { t: 'sec', l: 'Contact' },
-      { k: 'contactPerson', l: 'Contact Person', r: 1 }, { k: 'phone', l: 'Mobile Number', t: 'tel', v: 'phone', r: 1, hint: 'Numbers only' },
+      { k: 'contactPerson', l: 'Contact Person', r: v => !isOnlineVendor(v) }, { k: 'phone', l: 'Mobile Number', t: 'tel', v: 'phone', r: v => !isOnlineVendor(v), hint: 'Numbers only' },
       { k: 'altPhone', l: 'Alternate / Office Number', t: 'tel', v: 'phone' }, { k: 'email', l: 'Email', t: 'email', v: 'email' },
       { k: 'escalation', l: 'Escalation Contact' }, { k: 'escalationPhone', l: 'Escalation Mobile', t: 'tel', v: 'phone' },
-      { t: 'sec', l: 'Address' },
-      { k: 'address', l: 'Address', t: 'textarea', full: 1, r: 1 }, { k: 'city', l: 'City', r: 1 }, { k: 'pincode', l: 'PIN Code', t: 'tel', v: 'pin' },
+      { t: 'sec', l: 'Address', when: v => !isOnlineVendor(v) },
+      { k: 'address', l: 'Address', t: 'textarea', full: 1, r: 1, when: v => !isOnlineVendor(v) }, { k: 'city', l: 'City', r: 1, when: v => !isOnlineVendor(v) }, { k: 'pincode', l: 'PIN Code', t: 'tel', v: 'pin', when: v => !isOnlineVendor(v) },
       { k: 'notes', l: 'Notes', t: 'textarea', full: 1 },
     ] },
 
@@ -323,12 +345,15 @@ export const MODS = {
     cols: ['poNumber', 'vendorId', 'items', 'orderDate', 'deliveryDate', 'totalAmount', 'approvalStatus', 'deliveryStatus'], filters: ['approvalStatus', 'deliveryStatus'],
     fields: [
       { k: 'poNumber', l: 'PO Number', ro: 1 }, { k: 'vendorId', l: 'Vendor', t: 'ref', c: 'vendors', r: 1, filter: v => v.status !== 'Blacklisted' },
-      { k: 'items', l: 'Items', t: 'textarea', r: 1, full: 1 }, { k: 'requestedBy', l: 'Requested By', t: 'combo', o: 'persons', r: 1 }, { k: 'department', l: 'Department', t: 'select', o: 'departments', r: 1 },
+      { k: 'lines', l: 'Items (quantity × unit price)', t: 'table', cols: PO_COLS, total: 'amount', r: v => !v.items },
+      { k: 'items', l: 'Items Summary (auto)', t: 'calc', full: 1, calc: v => hasLines(v) ? v.lines.map(l => `${l.item} × ${num(l.qty)}${l.unit && l.unit !== 'Nos' ? ' ' + l.unit : ''}`).join(', ') : (v.items || '') },
+      { k: 'requestedBy', l: 'Requested By', t: 'combo', o: 'persons', r: 1 }, { k: 'department', l: 'Department', t: 'select', o: 'departments', r: 1 },
       { k: 'approvalStatus', l: 'Approval', t: 'select', o: ['Draft', 'Pending Approval', 'Approved', 'Rejected'], def: 'Pending Approval', r: 1 },
       { k: 'orderDate', l: 'Order Date', t: 'date', def: today, r: 1 },
       { k: 'deliveryStatus', l: 'Delivery', t: 'select', o: ['Not Ordered', 'Ordered', 'Partially Delivered', 'Delivered'], def: 'Ordered', r: 1 },
       { k: 'deliveryDate', l: 'Delivery Date', t: 'date', when: v => /Delivered/.test(v.deliveryStatus || ''), r: 1 },
-      { k: 'invoiceReference', l: 'Invoice Ref.', when: v => /Delivered/.test(v.deliveryStatus || '') }, { k: 'totalAmount', l: 'Total Amount (₹)', t: 'number', r: 1 },
+      { k: 'invoiceReference', l: 'Invoice Ref.', when: v => /Delivered/.test(v.deliveryStatus || '') },
+      { k: 'totalAmount', l: 'Total Amount (₹)', t: 'calc', calc: v => hasLines(v) ? poTotal(v.lines) : num(v.totalAmount) },
     ] },
 
   employees: { title: 'Employees & Sewadars', one: 'Person', prefix: 'EMP-', numKey: 'employeeCode',

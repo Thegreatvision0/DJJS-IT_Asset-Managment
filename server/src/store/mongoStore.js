@@ -23,6 +23,9 @@ export function createMongoStore(uri) {
       const res = {}; await Promise.all(DATA_COLS.map(async c => { res[c] = (await model(c).find({}).lean()).map(out); }));
       const s = await model('settings').findById('masters').lean(); res.masters = s ? s.masters : null; res.ver = s ? s.ver : 0; return res;
     },
+    /* revision counter: bumped on every data write, so cached copies can tell when they are stale */
+    async getRev() { const r = await model('settings').findById('rev').lean(); return r ? r.n : 0; },
+    async bumpRev() { const r = await model('settings').findOneAndUpdate({ _id: 'rev' }, { $inc: { n: 1 } }, { upsert: true, new: true, lean: true }); return r.n; },
     async getAll(col) { return (await model(col).find({}).lean()).map(out); },
     async getDoc(col, id) { return out(await model(col).findById(id).lean()); },
     async saveDocs(col, docs) { if (!docs.length) return; await model(col).bulkWrite(docs.map(d => ({ replaceOne: { filter: { _id: d.id }, replacement: inn(d), upsert: true } }))); },
