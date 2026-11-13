@@ -20,6 +20,12 @@ function byMonth(keys, rows, dateOf, val) {
   return out;
 }
 const RENEWAL_TYPES = [['AMC / Contract', 'AMC / Contracts'], ['Software Licence', 'Software licences'], ['Certificate', 'Certificates'], ['Warranty', 'Warranties']];
+/* where each renewal type lives: [module, date field, extra list filters] — open items only, as on the chart */
+const OPEN_RENEWAL = { x_renewalStatus: 'Renewed|Not Required' };
+const RENEW_GO = { 'AMC / Contract': ['contracts', 'endDate', OPEN_RENEWAL], 'Software Licence': ['licences', 'expiryDate', { ...OPEN_RENEWAL, x_licenceType: 'Perpetual' }], 'Certificate': ['certificates', 'expiryDate', OPEN_RENEWAL], 'Warranty': ['assets', 'warrantyEnd', {}] };
+/** first and last day of a YYYY-MM month */
+const monthRange = k => { const [y, m] = k.split('-').map(Number); return { from: k + '-01', to: k + '-' + String(new Date(y, m, 0).getDate()).padStart(2, '0') }; };
+const dayBefore = d => { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() - 1); return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
 
 export default function Dashboard() {
   const { can, openModal } = useApp(); const [recent, setRecent] = useState(null);
@@ -62,53 +68,79 @@ export default function Dashboard() {
   const byLoc = {}; A.filter(live).forEach(a => { const k = a.locationId || ''; byLoc[k] = (byLoc[k] || 0) + 1; });
   const locRows = Object.entries(byLoc).map(([id, n]) => [id ? label('locations', id).split(' › ').slice(-2).join(' › ') : 'Not set', n, id || null]);
   const T = (head, labels, series, money) => ({ head: [head, ...series.map(s => s.label)], rows: labels.map((l, i) => [l, ...series.map(s => fmtFull(s.values[i] || 0, money))]) });
-  const rowsTable = (head, rows) => ({ head: [head, 'Count'], rows: rows.filter(r => r[1] > 0).sort((a, b) => b[1] - a[1]).map(r => [r[0], r[1]]) });
+  const rowsTable = (head, rows) => { const r = rows.filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]); return { head: [head, 'Count'], rows: r.map(x => [x[0], x[1]]), keys: r.map(x => x[2] === undefined ? x[0] : x[2]) }; };
+  /** table cell → same destination as clicking the chart (col 0 = whole row) */
+  const cellPick = (series, pick) => (i, j) => pick(i, j ? series[j - 1].key : null);
+  const keyPick = (table, pick) => i => { const k = table.keys[i]; if (k !== null && k !== '') pick(k); };
+
+  /* ---- drill-down destinations ---- */
+  const go = (mod, p) => can(mod, 'v') && navigate(mod, p);
+  const openAdded = i => go('assets', { dk: 'purchaseDate,createdAt', ...monthRange(M12[i]), dl: `Assets added in ${L12[i]}` });
+  const openRepairs = (i, k) => go('repairJobs', k === 'c' ? { dk: 'handedOverAt', ...monthRange(M12[i]), dl: `Repairs handed over in ${L12[i]}` } : { dk: 'receivedAt', ...monthRange(M12[i]), dl: `Repairs received in ${L12[i]}` });
+  const openRenewal = (i, key) => {
+    if (!key) return navigate('alerts', i === 0 ? { b: 'exp' } : {});
+    const [mod, dk, extra] = RENEW_GO[key]; const name = RENEWAL_TYPES.find(t => t[0] === key)[1];
+    go(mod, i === 0 ? { dk, to: dayBefore(today()), dl: `${name} overdue`, ...extra } : { dk, ...monthRange(F12[i - 1]), dl: `${name} due in ${renewLabels[i]}`, ...extra });
+  };
+  const SPEND_GO = { po: ['purchases', 'orderDate', 'Purchases ordered'], mnt: ['maintenance', 'resolvedAt,reportedAt', 'Maintenance cost'], rep: ['repairJobs', 'handedOverAt,receivedAt', 'Repair cost'] };
+  const openSpend = (i, k) => { const s = k ? spendSeries.find(x => x.key === k) : spendSeries.find(x => x.values[i] > 0) || spendSeries[0]; if (!s) return; const [mod, dk, l] = SPEND_GO[s.key]; go(mod, { dk, ...monthRange(M12[i]), dl: `${l} in ${L12[i]}` }); };
+  const IN_USE = ['Installed / In Use', 'Assigned', 'Temporarily Assigned'];
+  const openInUse = () => go('assets', { x_status: ASSET_STATUSES.filter(s => !IN_USE.includes(s)).join('|'), dl: 'In use or assigned' });
+  const grpOf = c => ({ grp: catGroupOf(c) });
+  const repSeries = [{ key: 'r', label: 'Received', short: 'in', color: SERIES[0], values: received }, { key: 'c', label: 'Handed over', short: 'out', color: SERIES[1], values: closed }];
+  const statusTable = rowsTable('Status', byStatus), grpTable = rowsTable('Category group', Object.entries(byGrp)), locTable = rowsTable('Location', locRows);
 
   return <>
     {/* headline strip: one hero figure, supporting stat tiles */}
     <div className="hero">
       <div className="hero-main click" onClick={() => navigate('assets')}><span>Total assets</span><b>{A.length.toLocaleString('en-IN')}</b><small>{liveN.toLocaleString('en-IN')} active · {added.reduce((a, b) => a + b, 0)} added in 12 months</small></div>
-      <div className="stat"><span>Utilisation</span><b>{utilisation}%</b><small>{inUse} in use or assigned</small><div className="stat-trk"><i style={{ width: utilisation + '%' }} /></div></div>
-      {can('assets', 'v') && <div className="stat"><span>Asset value</span><b>{fmtNum(assetValue, 1)}</b><small>Recorded purchase cost</small></div>}
+      <div className="stat click" onClick={openInUse}><span>Utilisation</span><b>{utilisation}%</b><small>{inUse} in use or assigned</small><div className="stat-trk"><i style={{ width: utilisation + '%' }} /></div></div>
+      {can('assets', 'v') && <div className="stat click" onClick={() => navigate('assets')}><span>Asset value</span><b>{fmtNum(assetValue, 1)}</b><small>Recorded purchase cost</small></div>}
       <div className="stat click" onClick={() => navigate('repairJobs')}><span>Open repair jobs</span><b>{openJobs}</b><small>{atVendor} at vendors{vOver ? ` · ${vOver} overdue` : ''}</small><Spark values={received} /></div>
       <div className="stat click" onClick={() => navigate('alerts')}><span>Renewals due · 90 days</span><b>{due90}</b><small>{expired ? `${expired} already expired` : 'None expired'}</small></div>
-      {spendSeries.length > 0 && <div className="stat"><span>Spend · 12 months</span><b>{fmtNum(spend12, 1)}</b><small>{spendSeries.map(s => s.label).join(' + ')}</small><Spark values={M12.map((_, i) => spendSeries.reduce((t, s) => t + s.values[i], 0))} /></div>}
+      {spendSeries.length > 0 && <div className="stat click" onClick={() => go(SPEND_GO[spendSeries[0].key][0], {})}><span>Spend · 12 months</span><b>{fmtNum(spend12, 1)}</b><small>{spendSeries.map(s => s.label).join(' + ')}</small><Spark values={M12.map((_, i) => spendSeries.reduce((t, s) => t + s.values[i], 0))} /></div>}
     </div>
 
     <div className="ch-grid">
-      <ChartCard title="Asset additions" sub="Assets registered per month · last 12 months" table={T('Month', L12, [{ label: 'Assets added', values: added }])}>
-        <ColumnChart labels={L12} series={[{ key: 'a', label: 'Assets added', color: SERIES[0], values: added }]} />
+      <ChartCard title="Asset additions" sub="Assets registered per month · click a column to see them" table={T('Month', L12, [{ label: 'Assets added', values: added }])} onCell={i => openAdded(i)}>
+        <ColumnChart labels={L12} series={[{ key: 'a', label: 'Assets added', color: SERIES[0], values: added }]} onPick={openAdded} />
       </ChartCard>
-      {can('repairJobs', 'v') && <ChartCard title="Repair workload" sub="Job cards received vs handed over · last 12 months"
-        legend={<Legend series={[{ key: 'r', label: 'Received', color: SERIES[0] }, { key: 'c', label: 'Handed over', color: SERIES[1] }]} />}
-        table={T('Month', L12, [{ label: 'Received', values: received }, { label: 'Handed over', values: closed }])}>
-        <LineChart labels={L12} series={[{ key: 'r', label: 'Received', short: 'in', color: SERIES[0], values: received }, { key: 'c', label: 'Handed over', short: 'out', color: SERIES[1], values: closed }]} />
+      {can('repairJobs', 'v') && <ChartCard title="Repair workload" sub="Job cards received vs handed over · click a month to see them"
+        legend={<Legend series={repSeries} />} table={T('Month', L12, repSeries)} onCell={cellPick(repSeries, openRepairs)}>
+        <LineChart labels={L12} series={repSeries} onPick={openRepairs} />
       </ChartCard>}
-      <ChartCard title="Assets by status" sub="Click a bar to open the list" table={rowsTable('Status', byStatus)}>
+      <ChartCard title="Assets by status" sub="Click a bar to open the list" table={statusTable} onCell={keyPick(statusTable, s => navigate('assets', { f_status: s }))}>
         <HBarChart rows={byStatus} onPick={s => navigate('assets', { f_status: s })} />
       </ChartCard>
-      <ChartCard title="Assets by category group" sub="Click a bar to open the group" table={rowsTable('Category group', Object.entries(byGrp))}>
+      <ChartCard title="Assets by category group" sub="Click a bar to open the group" table={grpTable} onCell={keyPick(grpTable, g => navigate('assets', { grp: g }))}>
         <HBarChart rows={Object.entries(byGrp).map(([g, n]) => [g, n, g])} onPick={g => navigate('assets', { grp: g })} />
       </ChartCard>
-      {renew.length > 0 && <ChartCard title="Renewals calendar" sub="Contracts, licences, certificates and warranties falling due · next 12 months" wide
-        legend={<Legend series={renew} />} table={T('Month', renewLabels, renew)}>
-        <ColumnChart labels={renewLabels} series={renew} onPick={() => navigate('alerts')} />
+      {renew.length > 0 && <ChartCard title="Renewals calendar" sub="Contracts, licences, certificates and warranties falling due · click a coloured block to see them" wide
+        legend={<Legend series={renew} />} table={T('Month', renewLabels, renew)} onCell={cellPick(renew, openRenewal)}>
+        <ColumnChart labels={renewLabels} series={renew} onPick={openRenewal} />
       </ChartCard>}
-      {spendSeries.length > 0 && <ChartCard title="IT spend" sub="Purchases, maintenance and repair cost per month · last 12 months" wide
-        legend={<Legend series={spendSeries} />} table={T('Month', L12, spendSeries, 1)}>
-        <ColumnChart labels={L12} series={spendSeries} money />
+      {spendSeries.length > 0 && <ChartCard title="IT spend" sub="Purchases, maintenance and repair cost per month · click a block to see the records" wide
+        legend={<Legend series={spendSeries} />} table={T('Month', L12, spendSeries, 1)} onCell={cellPick(spendSeries, openSpend)}>
+        <ColumnChart labels={L12} series={spendSeries} money onPick={openSpend} />
       </ChartCard>}
-      <ChartCard title="Assets by location" sub="Active assets · top locations" table={rowsTable('Location', locRows)}>
+      <ChartCard title="Assets by location" sub="Active assets · click a bar to see them" table={locTable} onCell={keyPick(locTable, id => navigate('assets', { f_locationId: id }))}>
         <HBarChart rows={locRows} onPick={id => navigate('assets', { f_locationId: id })} />
       </ChartCard>
-      <ChartCard title="Data centre & network capacity" sub="Share of capacity in use" action={can('racks', 'v') && <button className="btn sm" onClick={() => navigate('racks')}>Rack layout</button>}>
+      <ChartCard title="Data centre & network capacity" sub="Share of capacity in use · click a meter for details" action={can('racks', 'v') && <button className="btn sm" onClick={() => navigate('racks')}>Rack layout</button>}>
         <div className="meters">
-          <Meter label="Rack space" used={rU} total={rT} onClick={can('racks', 'v') ? () => navigate('racks') : undefined} />
-          <Meter label="Switch ports" used={pU} total={pT} />
-          <Meter label="NVR channels" used={cU} total={cT} />
-          <Meter label="Fibre cores" used={oU} total={oT} />
+          <Meter label="Rack space" used={rU} total={rT} onClick={() => go('racks')} />
+          <Meter label="Switch ports" used={pU} total={pT} onClick={() => go('assets', grpOf(SWITCH_CATS[0]))} />
+          <Meter label="NVR channels" used={cU} total={cT} onClick={() => go('assets', { ...grpOf('NVR'), cat: 'NVR' })} />
+          <Meter label="Fibre cores" used={oU} total={oT} onClick={() => go('assets', { ...grpOf('OFC Cable'), cat: 'OFC Cable' })} />
         </div>
-        <div className="kv" style={{ margin: '14px 0 0' }}><div><span>Racks</span>{racks.length}</div><div><span>Switches / Routers / Firewalls</span>{sw.length}</div><div><span>IP Cameras</span>{A.filter(a => CAMERA_CATS.includes(a.categoryId) && live(a)).length}</div><div><span>Fibre Links</span>{fl.length} · {fl.filter(l => l.lossResult === 'Pass').length} pass · {fl.filter(l => l.lossResult === 'Fail').length} fail</div><div><span>End-user Devices</span>{A.filter(a => catGroupOf(a.categoryId) === 'Computing (End User)' && live(a)).length}</div><div><span>AMC Visits (this year)</span>{DB.amcVisits.filter(v => String(v.visitDate).slice(0, 4) === today().slice(0, 4)).length}</div></div>
+        <div className="kv" style={{ margin: '14px 0 0' }}>
+          <div className="go" onClick={() => go('racks')}><span>Racks</span>{racks.length}</div>
+          <div className="go" onClick={() => go('assets', grpOf(SWITCH_CATS[0]))}><span>Switches / Routers / Firewalls</span>{sw.length}</div>
+          <div className="go" onClick={() => go('assets', grpOf(CAMERA_CATS[0]))}><span>IP Cameras</span>{A.filter(a => CAMERA_CATS.includes(a.categoryId) && live(a)).length}</div>
+          <div className="go" onClick={() => go('networkLinks', { f_linkType: 'Optical Fibre' })}><span>Fibre Links</span>{fl.length} · {fl.filter(l => l.lossResult === 'Pass').length} pass · {fl.filter(l => l.lossResult === 'Fail').length} fail</div>
+          <div className="go" onClick={() => go('assets', { grp: 'Computing (End User)' })}><span>End-user Devices</span>{A.filter(a => catGroupOf(a.categoryId) === 'Computing (End User)' && live(a)).length}</div>
+          <div className="go" onClick={() => go('amcVisits', { dk: 'visitDate', from: today().slice(0, 4) + '-01-01', to: today().slice(0, 4) + '-12-31', dl: 'AMC visits this year' })}><span>AMC Visits (this year)</span>{DB.amcVisits.filter(v => String(v.visitDate).slice(0, 4) === today().slice(0, 4)).length}</div>
+        </div>
       </ChartCard>
     </div>
 

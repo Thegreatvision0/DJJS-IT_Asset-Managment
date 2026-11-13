@@ -43,6 +43,12 @@ export default function ListPage({ mod, params }) {
   const ql = q.toLowerCase();
   if (ql) rows = rows.filter(r => m.fields.some(f => f.k && String(f.listOnly ? f.calc(r) : dispText(f, r[f.k]) || '').toLowerCase().includes(ql)) || (r.specs && Object.values(r.specs).join(' ').toLowerCase().includes(ql)));
   (m.filters || []).forEach(k => { if (filters[k]) rows = rows.filter(r => String(k === 'status' ? dispStatus(mod, r) : r[k]) === filters[k]); });
+  /* drill-down from dashboard charts: date range on dk (first non-empty of comma-listed fields), x_<field>=a|b excludes values */
+  const dks = (params.dk || '').split(',').filter(Boolean);
+  if (dks.length && (params.from || params.to)) rows = rows.filter(r => { const d = String(dks.map(k => r[k]).find(Boolean) || '').slice(0, 10); return d && (!params.from || d >= params.from) && (!params.to || d <= params.to); });
+  Object.entries(params).filter(([k]) => k.startsWith('x_')).forEach(([k, v]) => { const no = v.split('|'), f = k.slice(2); rows = rows.filter(r => !no.includes(String(f === 'status' ? dispStatus(mod, r) : r[f] ?? ''))); });
+  const drill = params.dl || (dks.length && (params.from || params.to) ? 'Date filter' : '');
+  const clearDrill = () => navigate(mod, Object.fromEntries(Object.entries(params).filter(([k]) => !['dk', 'from', 'to', 'dl'].includes(k) && !k.startsWith('x_'))));
   if (sort.k) { const f = cols.find(c => c.k === sort.k) || fmap[sort.k]; rows.sort((a, b) => { const x = sortVal(mod, f, a), y = sortVal(mod, f, b); return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), undefined, { numeric: true })) * sort.dir; }); }
   else rows.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 
@@ -70,7 +76,8 @@ export default function ListPage({ mod, params }) {
 
   return <>
     {m.flow && <div className="flow"><em>Flow:</em> {m.flow.map((x, i) => <React.Fragment key={i}>{i > 0 && <em>→</em>}<span>{x}</span></React.Fragment>)}</div>}
-    {isA && <CatHeader grp={grp} cat={cat} />}
+    {drill && <div className="drill"><span>📊 From dashboard: <b>{drill}</b> · {rows.length} record(s)</span><button className="btn sm" onClick={clearDrill}>✕ Clear filter</button></div>}
+    {isA && !(drill && !grp) && <CatHeader grp={grp} cat={cat} />}
     <div className="toolbar">
       <input type="search" placeholder={`Search ${(isA && (cat || grp) ? (cat || grp) : m.title).toLowerCase()}…`} value={q} onChange={e => setQ(e.target.value)} />
       {(m.filters || []).filter(k => !(isA && k === 'categoryId' && cat)).map(k => <select key={k} value={filters[k] || ''} onChange={e => setFilters({ ...filters, [k]: e.target.value })}><option value="">All {fmap[k].l}</option>{filterOpts(k).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>)}

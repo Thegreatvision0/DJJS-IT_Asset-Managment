@@ -55,18 +55,21 @@ export function Legend({ series }) {
 }
 
 /* ---------- card with Chart / Table toggle ---------- */
-export function ChartCard({ title, sub, table, legend, children, wide, action }) {
+/** onCell(rowIndex, colIndex): colIndex 0 = the row label (whole row), 1.. = that series' cell */
+export function ChartCard({ title, sub, table, legend, children, wide, action, onCell }) {
   const [tab, setTab] = useState(false);
   return <div className={'card ch-card' + (wide ? ' wide' : '')}>
     <div className="ch-head"><div><h3>{title}</h3>{sub && <div className="ch-sub">{sub}</div>}</div>
       <div className="ch-tools">{action}{table && <button className="btn sm" onClick={() => setTab(!tab)} aria-pressed={tab}>{tab ? 'Chart' : 'Table'}</button>}</div></div>
     {!tab && legend}
     {tab ? <div className="tw ch-table"><table><thead><tr>{table.head.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
-      <tbody>{table.rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j} className={j ? 'num' : ''}>{c}</td>)}</tr>)}</tbody></table></div> : children}
+      <tbody>{table.rows.map((r, i) => <tr key={i} className={onCell ? 'ch-row' : ''}>{r.map((c, j) => { const live = onCell && (j === 0 || (c !== 0 && c !== '0' && c !== '₹0'));
+        return <td key={j} className={(j ? 'num' : '') + (live ? ' pick' : '')} onClick={live ? () => onCell(i, j) : undefined} title={live ? 'Open these records' : undefined}>{c}</td>; })}</tr>)}</tbody></table></div> : children}
   </div>;
 }
 
-/* ---------- column chart (single or stacked series) ---------- */
+/* ---------- column chart (single or stacked series) ----------
+   onPick(index, seriesKey): a segment passes its series key; the empty part of a column passes null */
 export function ColumnChart({ labels, series, height = 230, money, onPick }) {
   const [ref, W] = useWidth(); const [tip, show, hide] = useTip(); const [hi, setHi] = useState(-1);
   const totals = labels.map((_, i) => series.reduce((s, x) => s + (x.values[i] || 0), 0));
@@ -78,26 +81,34 @@ export function ColumnChart({ labels, series, height = 230, money, onPick }) {
     {W > 0 && <svg width={W} height={height} role="img" aria-label={series.map(s => s.label).join(', ')}>
       {tk.map(v => <g key={v}><line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke={v ? INK.grid : INK.axis} /><text x={pad.l - 8} y={y(v) + 4} textAnchor="end" className="ch-ax">{fmtNum(v, money)}</text></g>)}
       {labels.map((l, i) => { const x = pad.l + band * i + (band - bw) / 2; let acc = 0; const segs = series.map((s, si) => ({ s, si, v: s.values[i] || 0 })).filter(z => z.v > 0);
+        const tipRows = (focus) => [...series.map(s => [s.color, (focus === s.key ? '▸ ' : '') + s.label, fmtFull(s.values[i] || 0, money)]), ...(series.length > 1 ? [['', 'Total', fmtFull(totals[i], money)]] : []), ...(onPick && totals[i] ? [['', 'Click to open', '']] : [])];
         return <g key={i} opacity={hi < 0 || hi === i ? 1 : .45}>
+          {/* hover/click area for the whole column sits under the segments */}
+          <rect x={pad.l + band * i} y={pad.t} width={band} height={ih} fill="transparent" style={{ cursor: onPick && totals[i] ? 'pointer' : 'default' }}
+            onMouseMove={e => { setHi(i); show(e, l, tipRows(null)); }} onClick={() => onPick && totals[i] && onPick(i, series.length === 1 ? series[0].key : null)} />
           {segs.map((z, k) => { const y0 = y(acc), y1 = y(acc + z.v); acc += z.v; const last = k === segs.length - 1; const h = y0 - y1 - (last ? 0 : 2);
-            return <path key={z.si} d={last ? barPath(x, y1, bw, h) : `M${x},${y1 + 2}h${bw}v${Math.max(0, h)}h${-bw}Z`} fill={z.s.color} />; })}
-          {i % every === 0 && <text x={pad.l + band * i + band / 2} y={height - 8} textAnchor="middle" className="ch-ax">{l}</text>}
-          <rect x={pad.l + band * i} y={pad.t} width={band} height={ih} fill="transparent" style={{ cursor: onPick ? 'pointer' : 'default' }}
-            onMouseMove={e => { setHi(i); show(e, l, [...series.map(s => [s.color, s.label, fmtFull(s.values[i] || 0, money)]), ...(series.length > 1 ? [['', 'Total', fmtFull(totals[i], money)]] : [])]); }}
-            onClick={() => onPick && onPick(i)} />
+            return <path key={z.si} d={last ? barPath(x, y1, bw, h) : `M${x},${y1 + 2}h${bw}v${Math.max(0, h)}h${-bw}Z`} fill={z.s.color} style={{ cursor: onPick ? 'pointer' : 'default' }}
+              onMouseMove={e => { setHi(i); show(e, l, tipRows(z.s.key)); }} onClick={e => { e.stopPropagation(); onPick && onPick(i, z.s.key); }} />; })}
+          {i % every === 0 && <text x={pad.l + band * i + band / 2} y={height - 8} textAnchor="middle" className="ch-ax" pointerEvents="none">{l}</text>}
         </g>; })}
     </svg>}<Tip tip={tip} /></div>;
 }
 
-/* ---------- line chart with crosshair ---------- */
-export function LineChart({ labels, series, height = 230, money }) {
+/* ---------- line chart with crosshair ----------
+   onPick(index, seriesKey): click picks the month under the crosshair and the line nearest the pointer */
+export function LineChart({ labels, series, height = 230, money, onPick }) {
   const [ref, W] = useWidth(); const [tip, show, hide] = useTip(); const [hi, setHi] = useState(-1);
   const tk = ticks(Math.max(0, ...series.flatMap(s => s.values))), top = tk[tk.length - 1];
   const pad = { l: 44, r: 62, t: 12, b: 26 }, iw = Math.max(0, W - pad.l - pad.r), ih = height - pad.t - pad.b;
   const x = i => pad.l + (labels.length > 1 ? iw * i / (labels.length - 1) : iw / 2), y = v => pad.t + ih - (v / top) * ih;
   const every = iw / labels.length < 34 ? Math.ceil(34 / Math.max(iw / labels.length, 1)) : 1;
   const ends = series.map(s => ({ s, v: s.values[s.values.length - 1] || 0 })); const endsClash = ends.length > 1 && Math.abs(y(ends[0].v) - y(ends[1].v)) < 14;
-  const move = e => { const r = e.currentTarget.getBoundingClientRect(); const i = Math.max(0, Math.min(labels.length - 1, Math.round((e.clientX - r.left - pad.l) / (iw / Math.max(1, labels.length - 1))))); setHi(i); show(e, labels[i], series.map(s => [s.color, s.label, fmtFull(s.values[i] || 0, money)])); };
+  const at = e => { const r = e.currentTarget.ownerSVGElement.getBoundingClientRect(); const i = Math.max(0, Math.min(labels.length - 1, Math.round((e.clientX - r.left - pad.l) / (iw / Math.max(1, labels.length - 1)))));
+    // nearest line to the pointer among those with a value this month (nothing to open at zero)
+    const my = e.clientY - r.top; const cand = series.filter(s => (s.values[i] || 0) > 0);
+    const near = cand.reduce((b, s) => !b || Math.abs(y(s.values[i]) - my) < Math.abs(y(b.values[i]) - my) ? s : b, null); return [i, near]; };
+  const move = e => { const [i, near] = at(e); setHi(i); show(e, labels[i], [...series.map(s => [s.color, (onPick && s === near ? '▸ ' : '') + s.label, fmtFull(s.values[i] || 0, money)]), ...(onPick && near ? [['', 'Click to open', '']] : [])]); };
+  const click = e => { if (!onPick) return; const [i, near] = at(e); if (near) onPick(i, near.key); };
   return <div ref={ref} className="ch-plot" onMouseLeave={() => { hide(); setHi(-1); }}>
     {W > 0 && <svg width={W} height={height} role="img" aria-label={series.map(s => s.label).join(', ')}>
       {tk.map(v => <g key={v}><line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke={v ? INK.grid : INK.axis} /><text x={pad.l - 8} y={y(v) + 4} textAnchor="end" className="ch-ax">{fmtNum(v, money)}</text></g>)}
@@ -109,7 +120,7 @@ export function LineChart({ labels, series, height = 230, money }) {
       {!endsClash && ends.map(({ s, v }) => <text key={s.key} x={x(labels.length - 1) + 9} y={y(v) + 4} className="ch-end">{fmtNum(v, money)} <tspan className="ch-ax">{s.short || ''}</tspan></text>)}
       {hi >= 0 && <g pointerEvents="none"><line x1={x(hi)} x2={x(hi)} y1={pad.t} y2={pad.t + ih} stroke={INK.axis} />
         {series.map(s => <circle key={s.key} cx={x(hi)} cy={y(s.values[hi] || 0)} r="4.5" fill={s.color} stroke="#fff" strokeWidth="2" />)}</g>}
-      <rect x={pad.l} y={pad.t} width={iw} height={ih} fill="transparent" onMouseMove={move} />
+      <rect x={pad.l - 10} y={pad.t} width={iw + 20} height={ih} fill="transparent" onMouseMove={move} onClick={click} style={{ cursor: onPick && hi >= 0 && series.some(s => (s.values[hi] || 0) > 0) ? 'pointer' : 'default' }} />
     </svg>}<Tip tip={tip} /></div>;
 }
 
@@ -125,7 +136,7 @@ export function HBarChart({ rows, color = SERIES[0], money, onPick, max = 8 }) {
     {W > 0 && data.length > 0 && <svg width={W} height={data.length * rowH} role="img">
       {data.map(([l, v, key], i) => { const yy = i * rowH, w = Math.max(2, iw * v / top), short = l.length > 26 ? l.slice(0, 25) + '…' : l;
         return <g key={l} className={onPick && key !== null ? 'ch-pick' : ''} onClick={() => onPick && key !== null && onPick(key ?? l)}
-          onMouseMove={e => show(e, l, [[color, 'Count', fmtFull(v, money)], ['', 'Share', Math.round(v / total * 100) + '%']])}>
+          onMouseMove={e => show(e, l, [[color, 'Count', fmtFull(v, money)], ['', 'Share', Math.round(v / total * 100) + '%'], ...(onPick && key !== null ? [['', 'Click to open', '']] : [])])}>
           <rect x="0" y={yy} width={W} height={rowH} fill="transparent" />
           <text x={labW - 10} y={yy + rowH / 2 + 4} textAnchor="end" className="ch-lab">{short}</text>
           <rect x={labW} y={yy + (rowH - bh) / 2} width={iw} height={bh} rx="4" fill="#f1f4f8" />

@@ -276,6 +276,9 @@ img,svg{max-width:100%}
 }
 @media (prefers-reduced-motion:reduce){.side,.scrim,.toast{transition:none}}
 
+.drill{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--goldbg);border:1px solid rgba(201,162,75,.5);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px}
+.drill b{color:var(--navy)}
+
 /* ---------- graphical dashboard ---------- */
 .hero{display:grid;grid-template-columns:minmax(220px,1.3fr) repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
 .hero>div{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);position:relative;min-width:0}
@@ -314,6 +317,14 @@ img,svg{max-width:100%}
 .ch-empty{padding:24px 0;text-align:center}
 .ch-table{max-height:260px;overflow:auto}
 .ch-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+.ch-table td.pick{cursor:pointer}
+.ch-table tr.ch-row:hover td{background:#f6f8fb}
+.ch-table td.pick:hover{color:var(--info);text-decoration:underline}
+.kv .go{cursor:pointer;border-radius:6px;padding:2px 4px;margin:-2px -4px}
+.kv .go:hover{background:#f1f5fb}
+.kv .go:hover span{color:var(--info)}
+.stat.click::after,.hero-main.click::before{content:'↗';position:absolute;top:12px;right:14px;font-size:13px;color:#b5bfcd}
+.hero-main.click::before{color:var(--gold2)}
 .ch-tip{position:fixed;z-index:70;pointer-events:none;background:#0f1d33;color:#e9eef6;border-radius:8px;padding:8px 10px;font-size:12px;min-width:150px;max-width:240px;box-shadow:0 10px 30px rgba(0,0,0,.25);border:1px solid rgba(201,162,75,.35)}
 .ch-tip b{display:block;color:#fff;margin-bottom:4px;font-size:12.5px}
 .ch-tip div{display:flex;align-items:center;gap:6px;line-height:1.7}
