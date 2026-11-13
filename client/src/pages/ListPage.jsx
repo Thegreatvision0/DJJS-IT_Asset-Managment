@@ -1,6 +1,6 @@
 /* Generic list page for any module (with category navigation for assets) */
 import React, { useState } from 'react';
-import { DB, M, uniq, dispStatus, label, profile, specsFor, catGroupOf, STD_LABEL, GROUP_COLOR } from '@shared/core.js';
+import { DB, M, uniq, comboList, dispStatus, label, profile, specsFor, catGroupOf, STD_LABEL, GROUP_COLOR } from '@shared/core.js';
 import { MODS } from '@shared/modules.js';
 import { ACTIONS, refOf } from '@shared/engine.js';
 import { api, useApp, Badge, downloadXLSX } from '../lib.jsx';
@@ -71,6 +71,7 @@ export default function ListPage({ mod, params }) {
     if (k === 'status') return uniq([...(Array.isArray(f.o) ? f.o : M(f.o)), ...DB[mod].map(r => dispStatus(mod, r))]).map(x => [x, x]);
     if (f.t === 'ref') return DB[f.c].map(r => [r.id, label(f.c, r.id)]);
     if (f.t === 'combo') return uniq(DB[mod].map(r => r[k])).sort().map(x => [x, x]);
+    if (f.t === 'select' && !Array.isArray(f.o) && k !== 'categoryId') return uniq([...comboList(f.o), ...DB[mod].map(r => r[k]).filter(Boolean)]).map(x => [x, x]); // include older saved values too
     if (isA && k === 'categoryId' && grp) return (DB.masters.catGroups[grp] || []).map(x => [x, x]);
     return (Array.isArray(f.o) ? f.o : M(f.o)).map(x => [x, x]); };
 

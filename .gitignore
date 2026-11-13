@@ -1,5 +1,9 @@
 node_modules/
 server/.env
+.env
+**/.env
+.env.*
+!.env.example
 server/data/
 *.log
 .DS_Store

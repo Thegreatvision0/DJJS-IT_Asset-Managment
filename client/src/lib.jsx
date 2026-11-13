@@ -1,5 +1,5 @@
 /* App-wide state: login, dataset cache from the API, modal and toast */
-import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { setDB, fmtD, daysTo, money } from '@shared/core.js';
 import { canRole } from '@shared/modules.js';
 
@@ -61,6 +61,10 @@ export function AppProvider({ children }) {
   const can = (mod, act = 'v') => !!me && canRole((db.current || {}).roles, me, mod, act);
   const openModal = el => setModals(m => [...m, el]);
   const closeModal = () => setModals(m => m.slice(0, -1));
+  useEffect(() => { // Esc closes the top pop-up
+    if (!modals.length) return; const k = e => { if (e.key === 'Escape' && !e.defaultPrevented && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '')) setModals(m => m.slice(0, -1)); };
+    document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k);
+  }, [modals.length]);
   const replaceModal = el => setModals(m => [...m.slice(0, -1), el]);
   const value = { db: db.current, me, ready, login, logout, load, apply, mutate, can, toast, openModal, closeModal, replaceModal, setMe, putToken };
   return <Ctx.Provider value={value}>{children}
@@ -97,7 +101,8 @@ export function SimpleTable({ head, rows, empty = 'None' }) {
 /* ---------- Excel export ----------
    rows[0] = headings, rest = data. Numbers stay numeric (right-aligned, ₹ format for money columns); text wraps.
    ExcelJS is loaded only when someone exports, so it does not slow the app down. */
-const MONEY_HEAD = /₹|amount|cost|price|value|quote|total|labour/i;
+// money columns get the ₹ format; plain "Total" / "Value" headers are often counts, so they need ₹ or a money word
+const MONEY_HEAD = /₹|amount|cost|price|quote|labour|spend|paid/i;
 export async function downloadXLSX(rows, name, title) {
   const { default: ExcelJS } = await import('exceljs/dist/exceljs.min.js');
   const head = rows[0].map(h => String(h ?? '')), body = rows.slice(1), n = Math.max(1, head.length);

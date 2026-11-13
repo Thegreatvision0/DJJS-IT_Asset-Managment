@@ -29,9 +29,13 @@ r.put('/roles/:id', (req, res, next) => send(res, next)(saveRole(req.params.id, 
 r.delete('/roles/:id', (req, res, next) => send(res, next)(deleteRole(req.params.id, req.user)));
 
 r.get('/audit', (req, res, next) => send(res, next)((async () => {
-  const db = req.db; const { q, user, ref, limit } = req.query;
+  const db = req.db; const s = v => typeof v === 'string' ? v.slice(0, 200) : ''; // never pass objects (query operators) to the store
+  const q = s(req.query.q), user = s(req.query.user), ref = s(req.query.ref), limit = Math.min(3000, Math.max(1, parseInt(s(req.query.limit)) || 500));
   if (!can(db, req.user, 'audit', 'v')) {
-    if (!ref || !can(db, req.user, 'assets', 'v')) throw new HttpError(403, 'You do not have access to the audit log');
+    // without audit permission: only the history of one asset the user can see, matched exactly
+    if (ref.length < 3 || !can(db, req.user, 'assets', 'v') || !db.assets.some(a => a.assetTag === ref)) throw new HttpError(403, 'You do not have access to the audit log');
+    const word = new RegExp('(^|[^\\w-])' + ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^\\w-])', 'i'); // the tag as a whole word only
+    return { entries: (await getStore().listAudit({ ref, limit })).filter(e => e.ref === ref || word.test(e.detail || '')), users: [] };
   }
   return { entries: await getStore().listAudit({ q, user, ref, limit }), users: await getStore().auditUsers() };
 })()));

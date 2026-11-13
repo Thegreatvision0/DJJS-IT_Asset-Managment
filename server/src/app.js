@@ -9,7 +9,8 @@ import dataRoutes from './routes/data.js';
 export function createApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+  // only trust X-Forwarded-For when a real proxy sits in front (Vercel); otherwise anyone could fake their address
+  app.set('trust proxy', config.trustProxy);
   app.use(securityHeaders);
   const json = express.json({ limit: '5mb' });
   app.use((req, res, next) => req.path === '/api/restore' ? next() : json(req, res, next));

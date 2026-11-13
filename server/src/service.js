@@ -2,10 +2,11 @@
    Writes are serialised (one at a time) so numbering and cross-record checks stay consistent. */
 import { setDB, uid, clone, today, DEFAULT_MASTERS, COMBO_KEYS, specsFor, DEFAULT_CAT_GROUPS } from '../../shared/core.js';
 import { MODS, PERMS, canRole } from '../../shared/modules.js';
-import { normalize, validateFields, HOOKS, findAction, ConfirmNeeded, refOf, nextNo, refCount, isLastAdmin } from '../../shared/engine.js';
+import { normalize, validateFields, HOOKS, findAction, ConfirmNeeded, refOf, nextNo, refCount, isLastAdmin, OPEN_WORK } from '../../shared/engine.js';
 import { upgrade, defaultRoles } from '../../shared/seed.js';
 import { getStore, onWrite } from './store/index.js';
 import { hashPassword, isScryptHash } from './security.js';
+import { config } from './config.js';
 
 export class HttpError extends Error { constructor(status, msg, extra) { super(msg); this.status = status; this.extra = extra; } }
 
@@ -54,6 +55,19 @@ export async function loadDataset() {
   const d = structuredClone(cache.db); setDB(d); return d;
 }
 export const can = (db, user, mod, act) => canRole(db.roles, user, mod, act);
+const isModule = mod => typeof mod === 'string' && Object.hasOwn(MODS, mod) && mod !== 'roles';
+const roleOf = (db, id) => db.roles.find(r => r.id === id);
+const isAdmin = (db, user) => !!(user && (roleOf(db, user.roleId) || {}).all);
+/** a non-administrator may only hand out permissions they hold themselves */
+const withinOwn = (db, user, perms) => isAdmin(db, user) || Object.entries(perms || {}).every(([m, acts]) => Object.entries(acts || {}).every(([a, on]) => !on || can(db, user, m, a)));
+/** stops user managers from making themselves (or anyone) more powerful than they are, or taking over an administrator */
+function guardUserChange(db, actor, target, newRoleId) {
+  if (isAdmin(db, actor)) return;
+  if (target && isAdmin(db, target)) throw new HttpError(403, 'Only a System Administrator can change an administrator account');
+  if (target && target.id !== actor.id && !withinOwn(db, actor, (roleOf(db, target.roleId) || {}).perms)) throw new HttpError(403, 'You cannot change a user who has more permissions than you');
+  if (target && target.id === actor.id && newRoleId !== undefined && newRoleId !== target.roleId) throw new HttpError(403, 'You cannot change your own role');
+  if (newRoleId !== undefined) { const r = roleOf(db, newRoleId); if (r && (r.all || !withinOwn(db, actor, r.perms))) throw new HttpError(403, 'You cannot give a role with more permissions than your own'); }
+}
 export const publicUser = u => { if (!u) return u; const { pwHash, ...rest } = u; return rest; };
 
 function makeCtx(db, user, confirmed) {
@@ -79,13 +93,14 @@ function wrapConfirm(fn) { try { return fn(); } catch (e) { if (e instanceof Con
 /* ---------- create / update ---------- */
 export function saveRecord(mod, id, raw, user, confirmed) {
   return serial(async () => {
-    if (!MODS[mod] || mod === 'roles') throw new HttpError(404, 'Unknown module');
+    if (!isModule(mod)) throw new HttpError(404, 'Unknown module');
     const db = await loadDataset();
     const old = id ? db[mod].find(r => r.id === id) : null;
     if (id && !old) throw new HttpError(404, MODS[mod].one + ' not found');
     if (!can(db, user, mod, old ? 'e' : 'a')) throw new HttpError(403, 'You do not have permission to ' + (old ? 'edit' : 'add') + ' ' + MODS[mod].one.toLowerCase() + 's');
     const prev = old ? clone(old) : null;
     const data = normalize(mod, raw, old);
+    if (mod === 'users') guardUserChange(db, user, old, data.roleId);
     const { errors, bad } = validateFields(mod, data, old);
     if (errors.length) throw new HttpError(400, errors.slice(0, 6).join(' · ') + (errors.length > 6 ? ` (+${errors.length - 6} more)` : ''), { fields: bad });
     const { ctx, touched, notices, audits } = makeCtx(db, user, confirmed);
@@ -115,11 +130,13 @@ function changedFields(mod, a, b) {
 /* ---------- delete ---------- */
 export function deleteRecord(mod, id, user) {
   return serial(async () => {
-    if (!MODS[mod] || mod === 'roles') throw new HttpError(404, 'Unknown module');
+    if (!isModule(mod)) throw new HttpError(404, 'Unknown module');
     const db = await loadDataset(); const r = db[mod].find(x => x.id === id);
     if (!r) throw new HttpError(404, 'Not found');
     if (!can(db, user, mod, 'd')) throw new HttpError(403, 'You do not have permission to delete');
+    const open = OPEN_WORK[mod] && OPEN_WORK[mod](r); if (open) throw new HttpError(400, `This ${MODS[mod].one.toLowerCase()} is still open and holds its asset. ${open}, then delete it.`);
     const n = refCount(mod, id); if (n) throw new HttpError(400, `Cannot delete — used in ${n} other record(s)`);
+    if (mod === 'users') guardUserChange(db, user, r);
     if (mod === 'users' && r.id === user.id) throw new HttpError(400, 'You cannot delete your own account');
     if (mod === 'users' && isLastAdmin(r)) throw new HttpError(400, 'At least one active System Administrator is required');
     await getStore().deleteDoc(mod, id);
@@ -137,6 +154,7 @@ export function runAction(mod, id, actionId, input, user, confirmed) {
     const perm = a.perm || 'e';
     if (!can(db, user, mod, perm) || (['mount', 'unmount'].includes(actionId) && !can(db, user, 'racks', 'e'))) throw new HttpError(403, 'You do not have permission for this action');
     if (a.show && !a.show(r)) throw new HttpError(400, `“${a.l}” is not available at this stage`);
+    if (mod === 'users') guardUserChange(db, user, r);
     const { ctx, touched, notices, audits } = makeCtx(db, user, confirmed);
     const o = {}; const errs = [];
     if (a.fields) a.fields(r, ctx).forEach(f => { let v = (input || {})[f.k]; if (f.t === 'number') v = v === '' || v == null ? '' : Number(v); else if (f.t === 'table') v = Array.isArray(v) ? v : []; else v = v == null ? '' : String(v).trim(); o[f.k] = v; if (f.r && (v === '' || (Array.isArray(v) && !v.length))) errs.push(f.l + ' is required'); });
@@ -195,7 +213,12 @@ export function saveRole(id, body, user) {
   return serial(async () => {
     const db = await loadDataset();
     if (!can(db, user, 'roles', 'e')) throw new HttpError(403, 'You do not have permission to manage roles');
-    const name = String((body || {}).name || '').trim();
+    body = body && typeof body === 'object' ? body : {};
+    const name = String(typeof body.name === 'string' ? body.name : '').trim().slice(0, 80);
+    if (!isAdmin(db, user)) {
+      if (id && id === user.roleId) throw new HttpError(403, 'You cannot change your own role');
+      if (body.perms && !withinOwn(db, user, cleanPerms(body.perms))) throw new HttpError(403, 'You cannot grant permissions you do not have yourself');
+    }
     let r = id ? db.roles.find(x => x.id === id) : null;
     if (id && !r) throw new HttpError(404, 'Role not found');
     if (r && r.all) throw new HttpError(400, 'The System Administrator role is fixed');
@@ -212,6 +235,7 @@ export function saveRole(id, body, user) {
 export function deleteRole(id, user) {
   return serial(async () => {
     const db = await loadDataset(); if (!can(db, user, 'roles', 'e')) throw new HttpError(403, 'You do not have permission to manage roles');
+    if (!isAdmin(db, user) && id === user.roleId) throw new HttpError(403, 'You cannot delete your own role');
     const r = db.roles.find(x => x.id === id); if (!r) throw new HttpError(404, 'Role not found'); if (r.all) throw new HttpError(400, 'The System Administrator role is fixed');
     const n = db.users.filter(u => u.roleId === id).length; if (n) throw new HttpError(400, `${n} user(s) have this role — change their role first`);
     await getStore().deleteDoc('roles', id); const { ctx, audits } = makeCtx(db, user, true); ctx.audit('Deleted', 'roles', r); await getStore().addAudit(audits);
@@ -227,6 +251,7 @@ export async function ensureInitialised(adminPassword) {
     if (!d.masters) await st.saveSettings(Object.assign(clone(DEFAULT_MASTERS), { catGroups: clone(DEFAULT_CAT_GROUPS), customSpecs: {}, catFields: {}, hiddenSpecs: {} }), 3);
     return false;
   }
+  if (!adminPassword && config.production) throw new Error('ADMIN_PASSWORD must be set to create the first administrator in production');
   const roles = defaultRoles(); const pw = adminPassword || 'admin123';
   const admin = { id: 'u_admin', username: 'admin', name: 'IT Administrator', roleId: 'r_admin', department: 'IT', active: 'Yes', pwHash: hashPassword(pw), createdAt: new Date().toISOString(), createdBy: 'System' };
   await st.saveDocs('roles', roles); await st.saveDocs('users', [admin]);

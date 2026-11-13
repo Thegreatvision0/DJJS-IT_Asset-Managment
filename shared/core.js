@@ -317,9 +317,9 @@ export function label(c, id) {
 export const optLabel = (c, r) => c === 'assets' ? `${r.assetTag} — ${r.name} [${r.status}]` : label(c, r.id);
 export const M = k => k === 'categories' ? Object.values(DB.masters.catGroups || {}).flat() : (DB.masters[k] || []);
 export function comboList(k) {
-  const m = DB.masters; const act = (DB.employees || []).filter(e => e.active !== 'No');
-  if (k === 'staff') return uniq([...(m.staff || []), ...(DB.users || []).filter(u => u.active !== 'No').map(u => u.name), ...act.filter(e => e.department === 'IT').map(e => e.name)]).sort();
-  if (k === 'technicians') return uniq([...(m.technicians || []), ...act.filter(e => e.department === 'IT').map(e => e.name), ...(DB.vendors || []).filter(v => v.status !== 'Blacklisted').map(v => v.name)]).sort();
+  const m = DB.masters; const act = (DB.employees || []).filter(e => e.active !== 'No'); const isIT = e => /^IT\b/.test(e.department || ''); // "IT" or an IT section
+  if (k === 'staff') return uniq([...(m.staff || []), ...(DB.users || []).filter(u => u.active !== 'No').map(u => u.name), ...act.filter(isIT).map(e => e.name)]).sort();
+  if (k === 'technicians') return uniq([...(m.technicians || []), ...act.filter(isIT).map(e => e.name), ...(DB.vendors || []).filter(v => v.status !== 'Blacklisted').map(v => v.name)]).sort();
   if (k === 'persons') return uniq([...act.map(e => e.name), ...(m.persons || [])]).sort();
   if (k === 'manufacturers') return uniq([...(m.manufacturers || []), ...(DB.assets || []).map(a => a.manufacturer)]).sort();
   return M(k);
@@ -341,7 +341,7 @@ export const V_RULES = {
   mac: [/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i, 'must look like AA:BB:CC:DD:EE:FF'],
   gstin: [/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/i, 'must be a 15-character GSTIN'],
   username: [/^[a-z0-9._-]{3,}$/i, 'may use letters, numbers, dot, dash (min 3)'],
-  url: [/^(https?:\/\/)?[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/i, 'is not a valid web address (e.g. https://www.example.com)'],
+  url: [/^(https?:\/\/)?[\w-]+(\.[\w-]+)+(:\d+)?(\/[^\s"'<>`]*)?$/i, 'is not a valid web address (e.g. https://www.example.com)'],
 };
 export function checkV(f, v) {
   if (f.t === 'number' && num(v) < 0) return f.l + ' cannot be negative';

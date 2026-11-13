@@ -12,7 +12,7 @@
 import {
   DB, today, daysTo, fmtD, num, clone, uniq, live, GONE, SYS_STATUSES, CAN_ASSIGN, CAN_TEMP, CAMERA_CATS,
   getA, tagOf, label, profile, specsFor, camerasOn, rackDevices, rackCheck, portUsers, parseCores, coresUsed,
-  partsTotal, checkV, findPerson, money, PORT_CATS,
+  partsTotal, checkV, findPerson, money, PORT_CATS, comboList,
 } from './core.js';
 import { MODS, PARTS_COLS } from './modules.js';
 
@@ -43,6 +43,7 @@ export function fieldRequired(mod, f, vals) {
 }
 export const visibleSpecs = (cat, specs) => specsFor(cat).filter(f => !f.when || f.when(specs || {}));
 
+const BAD = '\u0000invalid'; // marks a value of the wrong shape so validation can report it
 /* ---------- normalise raw input into a clean record (server authoritative) ---------- */
 export function normalize(mod, raw, old) {
   const m = MODS[mod]; const out = {}; raw = raw || {};
@@ -54,11 +55,12 @@ export function normalize(mod, raw, old) {
     let v = vals[f.k];
     if (f.t === 'number') v = v === '' || v == null ? '' : Number(v);
     else if (f.t === 'table') v = Array.isArray(v) ? v.map(row => {
-      const o = {}; f.cols.forEach(c => { if (c.t === 'calc') return; const x = row[c.k]; o[c.k] = c.t === 'number' ? (x === '' || x == null ? '' : Number(x)) : String(x ?? '').trim(); });
+      const o = {}; row = row && typeof row === 'object' ? row : {}; f.cols.forEach(c => { if (c.t === 'calc') return; let x = row[c.k]; if (x !== null && typeof x === 'object') x = ''; o[c.k] = c.t === 'number' ? (x === '' || x == null ? '' : Number(x)) : String(x ?? '').trim(); });
       f.cols.forEach(c => { if (c.t === 'calc') o[c.k] = c.calc(o); }); // e.g. amount = qty × unit price
       return o;
     }).filter(o => f.cols.some(c => c.k !== 'qty' && c.t !== 'calc' && o[c.k] !== '' && o[c.k] != null)) : [];
-    else if (f.t === 'multiref') v = Array.isArray(v) ? v.map(String) : [];
+    else if (f.t === 'multiref') v = Array.isArray(v) ? v.filter(x => typeof x === 'string' || typeof x === 'number').map(String) : [];
+    else if (v !== null && typeof v === 'object') v = BAD; // objects / arrays are never valid for a single value
     else if (f.t === 'password') v = String(v ?? '');
     else v = v == null ? '' : String(v).trim();
     if (f.v === 'mac' && v) v = v.toUpperCase().replace(/-/g, ':');
@@ -66,8 +68,8 @@ export function normalize(mod, raw, old) {
     vals[f.k] = v;
   });
   if (mod === 'assets') {
-    const sp = {}; const rs = raw.specs || {};
-    visibleSpecs(vals.categoryId, rs).forEach(f => { if (f.t === 'calc') return; let v = rs[f.k]; if (v === '' || v == null) return; sp[f.k] = f.t === 'number' ? Number(v) : String(v).trim(); });
+    const sp = {}; const rs = raw.specs && typeof raw.specs === 'object' ? raw.specs : {};
+    visibleSpecs(vals.categoryId, rs).forEach(f => { if (f.t === 'calc') return; let v = rs[f.k]; if (v === '' || v == null || typeof v === 'object') return; sp[f.k] = f.t === 'number' ? Number(v) : String(v).trim(); });
     vals.specs = sp;
   }
   m.fields.forEach(f => {
@@ -80,6 +82,32 @@ export function normalize(mod, raw, old) {
   return out;
 }
 
+/* ---------- type checks: the server never trusts the form to have limited the choices ---------- */
+const MAX_TEXT = 2000, MAX_LONG = 20000, MAX_ROWS = 500;
+const realDate = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d); if (!m) return false; const x = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); return x.getUTCFullYear() === +m[1] && x.getUTCMonth() === +m[2] - 1 && x.getUTCDate() === +m[3]; };
+function typeCheck(f, v, old) {
+  if (v === BAD) return f.l + ' has an invalid value';
+  if (f.t === 'number') return Number.isFinite(v) ? '' : f.l + ' must be a number';
+  if (f.t === 'table' || f.t === 'multiref') return v.length > MAX_ROWS ? `${f.l} can have at most ${MAX_ROWS} rows` : '';
+  if (typeof v !== 'string') return '';
+  if (v.length > (f.t === 'textarea' ? MAX_LONG : MAX_TEXT)) return f.l + ' is too long';
+  if (old && old[f.k] === v) return ''; // unchanged legacy values stay allowed
+  if (f.t === 'date' && (!/^\d{4}-\d{2}-\d{2}$/.test(v) || !realDate(v))) return f.l + ' is not a valid date';
+  if (f.t === 'datetime' && !realDate(v)) return f.l + ' is not a valid date';
+  if ((f.t === 'select' || (f.t === 'dyn' && Array.isArray(f.o))) && f.o) { const opts = Array.isArray(f.o) ? f.o : comboList(f.o); if (!opts.includes(v)) return `${f.l}: “${v.slice(0, 40)}” is not one of the allowed choices`; }
+  if (f.t === 'ref' && f.c && DB[f.c] && !DB[f.c].some(r => r.id === v)) return f.l + ' refers to a record that does not exist';
+  if (f.t === 'aref' && !(DB.assets || []).some(a => a.id === v)) return f.l + ' refers to an asset that does not exist';
+  return '';
+}
+/** open workflow records hold their asset in a workflow status — deleting one would leave the asset stuck */
+export const OPEN_WORK = {
+  assignments: r => r.status === 'Active' && 'Return the asset first',
+  tempAssignments: r => r.status === 'Issued' && 'Mark it returned first',
+  repairJobs: r => r.assetId && !['Handed Over', 'Beyond Economic Repair', 'Cancelled'].includes(r.status) && 'Hand it over or cancel the job first',
+  repairDispatches: r => r.status !== 'Received Back' && 'Receive it back from the vendor first',
+  maintenance: r => ['Open', 'Scheduled', 'In Progress', 'On Hold', 'Awaiting Parts'].includes(r.status) && 'Close it first',
+};
+
 /* ---------- field-level validation (required + format) ---------- */
 export function validateFields(mod, data, old) {
   const m = MODS[mod]; const errors = [], bad = [];
@@ -88,9 +116,11 @@ export function validateFields(mod, data, old) {
     if (!fieldVisible(mod, f, data, { rec: old })) return;
     const v = data[f.k]; const empty = v == null || v === '' || (Array.isArray(v) && !v.length);
     if (fieldRequired(mod, f, data) && empty) { errors.push(f.l + ' is required'); bad.push(f.k); }
-    else if (!empty) { const e = checkV(f, v); if (e) { errors.push(e); bad.push(f.k); } }
+    else if (!empty) { const e = checkV(f, v) || typeCheck(f, v, old); if (e) { errors.push(e); bad.push(f.k); } }
     if (f.t === 'table' && Array.isArray(v)) v.forEach((row, i) => f.cols.forEach(c => { // per-row required / numeric checks
       const x = row[c.k];
+      if (c.t === 'number' && x !== '' && x != null && !Number.isFinite(x)) { errors.push(`${f.l} row ${i + 1}: ${c.l} must be a number`); if (!bad.includes(f.k)) bad.push(f.k); return; }
+      if (typeof x === 'string' && x.length > MAX_TEXT) { errors.push(`${f.l} row ${i + 1}: ${c.l} is too long`); if (!bad.includes(f.k)) bad.push(f.k); return; }
       if (c.r && (x === '' || x == null || (c.t === 'number' && !(num(x) > 0)))) { errors.push(`${f.l} row ${i + 1}: ${c.l} is required`); if (!bad.includes(f.k)) bad.push(f.k); }
       else if (c.t === 'number' && x !== '' && x != null && num(x) < 0) { errors.push(`${f.l} row ${i + 1}: ${c.l} cannot be negative`); if (!bad.includes(f.k)) bad.push(f.k); }
     }));
@@ -376,7 +406,7 @@ export const ACTIONS = {
   users: [{ id: 'resetPassword', l: 'Reset Password', fields: () => [{ k: 'pw', l: 'New Password', t: 'password', r: 1 }, { k: 'pw2', l: 'Confirm Password', t: 'password', r: 1 }],
     run(ctx, u, o) { if (String(o.pw).length < 6) return 'Password must be at least 6 characters'; if (o.pw !== o.pw2) return 'Passwords do not match'; ctx.setPassword(u, o.pw); ctx.audit('Password reset', 'users', u); ctx.notice('Password changed for ' + u.username); } }],
 };
-export const findAction = (mod, id) => (ACTIONS[mod] || []).find(a => a.id === id);
+export const findAction = (mod, id) => (Object.hasOwn(ACTIONS, mod) ? ACTIONS[mod] : []).find(a => a.id === id);
 
 /* ---------- parts register across repairs, maintenance and AMC visits ---------- */
 export function allParts() {
