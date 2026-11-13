@@ -363,7 +363,7 @@ export const MODS = {
       { k: 'employeeCode', l: 'Code', ro: 1 }, { k: 'name', l: 'Full Name', r: 1 },
       { k: 'personType', l: 'Type', t: 'select', o: ['Permanent Staff', 'Sewadar', 'Volunteer'], def: 'Permanent Staff', r: 1 },
       { k: 'designation', l: 'Designation / Role', t: 'combo', o: 'designations' },
-      { k: 'department', l: 'Department', t: 'select', o: 'departments', r: 1 }, { k: 'locationId', l: 'Location', t: 'ref', c: 'locations' },
+      { k: 'department', l: 'Department (IT Section)', t: 'select', o: 'itSections', r: 1, hint: 'IT department sections — edit the list in Settings & Masters' }, { k: 'locationId', l: 'Location', t: 'ref', c: 'locations' },
       { k: 'joiningDate', l: 'Joining / Sewa Start Date', t: 'date' },
       { k: 'active', l: 'Active', t: 'select', o: ['Yes', 'No'], def: 'Yes', r: 1 },
       { t: 'sec', l: 'Contact & Address' },

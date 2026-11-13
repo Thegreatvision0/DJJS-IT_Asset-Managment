@@ -3,7 +3,7 @@ import { DB, ASSET_STATUSES, SYS_STATUSES, STD, STD_LABEL, CAT_SPECS, profile, s
 import { api, useApp, Badge, Modal } from '../lib.jsx';
 import { navigate } from '../router.js';
 
-const MASTER_LABELS = { departments: 'Departments', locationTypes: 'Location Types', conditions: 'Conditions', priorities: 'Priorities', purposes: 'Temporary Issue Purposes', borrowerTypes: 'Borrower Types', linkTypes: 'Link Types', partTypes: 'Part Types', visitTypes: 'AMC Visit Types', serviceCategories: 'Vendor Service Categories', licenceTypes: 'Licence Types', contractTypes: 'Contract Types', renewalStatuses: 'Renewal Statuses', carriers: 'Carriers', reminderDays: 'Reminder Windows (days)' };
+const MASTER_LABELS = { departments: 'Departments (whole organisation)', itSections: 'IT Department Sections (Employees & Sewadars)', locationTypes: 'Location Types', conditions: 'Conditions', priorities: 'Priorities', purposes: 'Temporary Issue Purposes', borrowerTypes: 'Borrower Types', linkTypes: 'Link Types', partTypes: 'Part Types', visitTypes: 'AMC Visit Types', serviceCategories: 'Vendor Service Categories', licenceTypes: 'Licence Types', contractTypes: 'Contract Types', renewalStatuses: 'Renewal Statuses', carriers: 'Carriers', reminderDays: 'Reminder Windows (days)' };
 
 function useSettings() {
   const { mutate, toast } = useApp();

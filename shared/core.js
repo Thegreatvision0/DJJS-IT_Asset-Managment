@@ -23,6 +23,8 @@ export const clone = o => JSON.parse(JSON.stringify(o));
 /* ---------------- Masters (editable in Settings) ---------------- */
 export const DEFAULT_MASTERS = {
   departments: ['IT', 'Administration', 'Accounts', 'Media', 'Publication', 'Security', 'Kitchen', 'Reception', 'Education', 'Health'],
+  // sections of the IT department — the only choices for Employees & Sewadars (whole-organisation departments stay in `departments`)
+  itSections: ['IT – Administration / Head Office', 'IT – Hardware & Desktop Support', 'IT – Networking & Wi-Fi', 'IT – Data Centre & Servers', 'IT – CCTV & Surveillance', 'IT – Software & Applications', 'IT – Website & Digital Media', 'IT – Audio / Video & Events', 'IT – Telecom & Communication', 'IT – Stores & Procurement'],
   designations: ['IT Head', 'Network Engineer', 'System Administrator', 'CCTV Technician', 'Hardware Technician', 'IT Sewadar', 'Office Staff', 'Coordinator'],
   conditions: ['New', 'Good', 'Fair', 'Poor', 'Damaged', 'Not Working'],
   priorities: ['Low', 'Normal', 'High', 'Critical'],
