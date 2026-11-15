@@ -54,11 +54,11 @@ export const live = a => a && !GONE.includes(a.status);
 
 /* ---------------- Hardware categories ---------------- */
 export const DEFAULT_CAT_GROUPS = {
-  'Network & Rack': ['Rack', 'Patch Panel', 'Cable Manager', 'Switch', 'PoE Switch', 'Router', 'Firewall', 'Access Point', 'Wireless Controller', 'Modem / ONT'],
+  'Network & Rack': ['Rack', 'Rack PDU', 'Patch Panel', 'Cable Manager', 'Switch', 'PoE Switch', 'Router', 'Firewall', 'Access Point', 'Wireless Controller', 'Modem / ONT'],
   'Fibre & OFC': ['OFC Cable', 'LIU / ODF', 'Fibre Joint Closure', 'Fibre Patch Cord', 'Pigtail', 'SFP Module', 'Media Converter'],
-  'Data Centre': ['Server', 'Storage / NAS', 'Rack PDU', 'KVM Switch', 'Precision AC', 'Environment Sensor', 'Fire Suppression'],
+  'Data Centre': ['Server', 'Storage / NAS', 'KVM Switch', 'Precision AC', 'Environment Sensor', 'Fire Suppression'],
   'CCTV (IP)': ['NVR', 'IP Camera', 'PTZ Camera', 'Surveillance HDD', 'PoE Injector', 'CCTV Monitor', 'Video Wall', 'CCTV Joystick / Keyboard'],
-  'Computing (End User)': ['Desktop', 'Laptop', 'All-in-One', 'Thin Client', 'Tablet'],
+  'Computing (End User)': ['Desktop', 'Laptop', 'Thin Client', 'Tablet'],
   'Display & Peripherals': ['Monitor', 'Keyboard / Mouse', 'Webcam', 'Headset', 'External HDD'],
   'Printing & Scanning': ['Printer', 'Multifunction Printer', 'Scanner', 'Label / Barcode Printer'],
   'Power': ['UPS', 'UPS Battery Bank', 'Inverter', 'Battery', 'Stabilizer'],
@@ -104,7 +104,9 @@ export const S = (k, l, t, o, x) => Object.assign({ k, l, t: t || (o ? 'select' 
 export const N = (k, l, x) => S(k, l, 'number', null, x);
 export const YN = ['Yes', 'No'];
 export const FIBRE_TYPES = ['Single-mode OS2', 'Multi-mode OM3', 'Multi-mode OM4', 'Multi-mode OM5'];
-export const RACKMOUNT = [S('rackId', 'Mounted in Rack', 'aref', null, { cats: ['Rack'] }), N('uStart', 'Start U (bottom)'), S('uHeight', 'Height (U)', 0, ['1', '2', '3', '4', '5', '6', '7', '8', '10', '12'])];
+export const RACKMOUNT = [S('rackId', 'Mounted in Rack', 'aref', null, { cats: ['Rack'] }), N('uStart', 'Start U (bottom)'), S('uHeight', 'Height (U)', 0, ['1', '2', '3', '4', '5', '6', '7', '8', '10', '12'], { noForm: 1 })];
+// noForm: kept on the record (and used by the Rack Layout page) but not shown or asked for in the asset form
+const hideInForm = f => ({ ...f, noForm: 1 });
 export const FW = S('firmware', 'Firmware Version');
 export const COMPUTE = [S('processor', 'Processor', null, null, { r: 1 }), S('ramGB', 'RAM', 0, ['4 GB', '8 GB', '12 GB', '16 GB', '32 GB', '64 GB', '128 GB', '256 GB', '512 GB'], { r: 1 }),
   S('storageType', 'Storage Type', 0, ['SSD', 'NVMe SSD', 'HDD', 'SSD + HDD'], { r: 1 }), S('storageSize', 'Storage Size', 0, ['128 GB', '256 GB', '512 GB', '1 TB', '2 TB', '4 TB', '8 TB+']),
@@ -129,15 +131,15 @@ export const CAT_SPECS = {
   'Rack': [S('rackSize', 'Rack Size', 0, ['4U', '6U', '9U', '12U', '15U', '18U', '22U', '27U', '32U', '36U', '42U', '45U', '47U'], { r: 1 }),
     S('rackType', 'Rack Type', 0, ['Wall Mount', 'Floor Standing (Network)', 'Floor Standing (Server)', 'Open Frame'], { r: 1 }),
     S('width', 'Width', 0, ['600 mm', '800 mm']), S('depth', 'Depth', 0, ['450 mm', '550 mm', '600 mm', '800 mm', '1000 mm', '1200 mm']),
-    S('usedU', 'U Used', 'calc', null, { calc: (v, rec) => rec ? rackUsed(rec.id) : 0 }),
-    S('freeU', 'U Free', 'calc', null, { calc: (v, rec) => (parseInt(v.rackSize) || 0) - (rec ? rackUsed(rec.id) : 0) }),
-    N('pduCount', 'PDUs Installed'), S('coolingFans', 'Cooling Fans', 0, YN), S('lockKey', 'Lock / Key No.'), S('rackRow', 'DC Row / Position')],
+    S('usedU', 'U Used', 'calc', null, { calc: (v, rec) => rec ? rackUsed(rec.id) : 0, noForm: 1 }),
+    S('freeU', 'U Free', 'calc', null, { calc: (v, rec) => (parseInt(v.rackSize) || 0) - (rec ? rackUsed(rec.id) : 0), noForm: 1 }),
+    N('pduCount', 'PDUs Installed'), S('coolingFans', 'Cooling Fans', 0, YN), S('lockKey', 'Lock / Key No.'), S('rackRow', 'DC Row / Position', null, null, { noForm: 1 })],
   'Patch Panel': [S('ports', 'Ports', 0, ['12', '24', '48'], { r: 1 }), S('cableType', 'Cable Type', 0, ['Cat5e', 'Cat6', 'Cat6A'], { r: 1 }), S('loaded', 'Loaded / Unloaded', 0, ['Loaded', 'Unloaded']),
     S('portsUsed', 'Ports in Use', 'calc', null, { calc: (v, rec) => portsInUse(rec) }), ...RACKMOUNT],
   'Cable Manager': [S('cmType', 'Type', 0, ['Horizontal 1U', 'Horizontal 2U', 'Vertical']), ...RACKMOUNT],
   'Switch': SWITCH, 'PoE Switch': SWITCH,
   'Router': [N('wanPorts', 'WAN Ports', { r: 1 }), N('lanPorts', 'LAN Ports', { r: 1 }), S('throughput', 'Throughput', 0, ['100 Mbps', '1 Gbps', '2 Gbps', '5 Gbps', '10 Gbps']), S('isp', 'ISP / Link'),
-    S('portsUsed', 'Ports in Use', 'calc', null, { calc: (v, rec) => portsInUse(rec) }), ...RACKMOUNT, FW],
+    S('portsUsed', 'Ports in Use', 'calc', null, { calc: (v, rec) => portsInUse(rec), noForm: 1 }), RACKMOUNT[0], hideInForm(RACKMOUNT[1]), RACKMOUNT[2], FW],
   'Firewall': [N('ports', 'Ports', { r: 1 }), S('throughput', 'Firewall Throughput', 0, ['1 Gbps', '2 Gbps', '5 Gbps', '10 Gbps', '20 Gbps+']),
     S('subscriptionExpiry', 'Security Subscription Expiry', 'date', null, { exp: 1 }), S('haPair', 'HA Pair', 0, YN),
     S('portsUsed', 'Ports in Use', 'calc', null, { calc: (v, rec) => portsInUse(rec) }), ...RACKMOUNT, FW],
@@ -146,7 +148,7 @@ export const CAT_SPECS = {
   'Wireless Controller': [N('maxAPs', 'Max APs'), N('managedAPs', 'APs Managed'), ...RACKMOUNT, FW],
   'Modem / ONT': [S('isp', 'ISP', null, null, { r: 1 }), S('connectionType', 'Connection', 0, ['Fibre (FTTH)', 'Leased Line', 'DSL', '4G / 5G']), S('bandwidth', 'Bandwidth', 0, ['50 Mbps', '100 Mbps', '200 Mbps', '500 Mbps', '1 Gbps']), S('circuitId', 'Circuit / Account ID')],
   'OFC Cable': [S('fibreType', 'Fibre Type', 0, FIBRE_TYPES, { r: 1 }), S('cores', 'Cores', 0, ['2', '4', '6', '8', '12', '24', '48', '96', '144'], { r: 1 }),
-    S('construction', 'Construction', 0, ['Armoured', 'Unarmoured', 'ADSS (Aerial)', 'Indoor Tight-buffered']), N('lengthM', 'Length (m)', { r: 1 }), S('drumNo', 'Drum / Batch No.'),
+    S('construction', 'Construction', 0, ['Armoured', 'Unarmoured', 'ADSS (Aerial)', 'Indoor Tight-buffered']), N('lengthM', 'Length (m)', { r: 1 }), S('drumNo', 'Drum / Batch No.', null, null, { noForm: 1 }),
     S('fromSite', 'From (Location)', 'ref', null, { c: 'locations' }), S('toSite', 'To (Location)', 'ref', null, { c: 'locations' }),
     S('route', 'Route Type', 0, ['Underground (Duct)', 'Aerial', 'Indoor Tray', 'Mixed']),
     S('coresUsed', 'Cores in Use', 'calc', null, { calc: (v, rec) => rec ? coresUsed(rec.id).length : 0 })],

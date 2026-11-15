@@ -49,7 +49,7 @@ export function AssetDetail({ id }) {
   useEffect(() => { if (a) api('/audit?ref=' + encodeURIComponent(a.assetTag) + '&limit=60').then(r => setAudit(r.entries), () => setAudit([])); }, [id]);
   if (!a) return <Modal title="Asset not found"><p>This asset no longer exists.</p></Modal>;
   const jobs = DB.repairJobs.filter(j => j.assetId === id); const disp2 = DB.repairDispatches.filter(d => jobs.some(j => j.id === d.repairJobId));
-  const fs = specsFor(a.categoryId).filter(f => f.t === 'calc' || ((a.specs || {})[f.k] !== undefined && a.specs[f.k] !== ''));
+  const fs = specsFor(a.categoryId).filter(f => !f.noForm).filter(f => f.t === 'calc' || ((a.specs || {})[f.k] !== undefined && a.specs[f.k] !== ''));
   const p = profile(a.categoryId); const sh = k => p.show.includes(k);
   const links = DB.networkLinks.filter(l => [l.sourceDeviceId, l.destinationDeviceId, l.sourceLiuId, l.destLiuId, l.ofcCableId, l.patchPanelId].includes(id));
   const connected = DB.assets.filter(x => x.connSwitch === id);

@@ -41,7 +41,7 @@ export function fieldRequired(mod, f, vals) {
   }
   return false;
 }
-export const visibleSpecs = (cat, specs) => specsFor(cat).filter(f => !f.when || f.when(specs || {}));
+export const visibleSpecs = (cat, specs) => specsFor(cat).filter(f => !f.noForm && (!f.when || f.when(specs || {})));
 
 const BAD = '\u0000invalid'; // marks a value of the wrong shape so validation can report it
 /* ---------- normalise raw input into a clean record (server authoritative) ---------- */
@@ -70,6 +70,12 @@ export function normalize(mod, raw, old) {
   if (mod === 'assets') {
     const sp = {}; const rs = raw.specs && typeof raw.specs === 'object' ? raw.specs : {};
     visibleSpecs(vals.categoryId, rs).forEach(f => { if (f.t === 'calc') return; let v = rs[f.k]; if (v === '' || v == null || typeof v === 'object') return; sp[f.k] = f.t === 'number' ? Number(v) : String(v).trim(); });
+    // fields hidden from the form keep their saved value (e.g. Height (U) set on the Rack Layout page)
+    if (old && old.categoryId === vals.categoryId) specsFor(vals.categoryId).forEach(f => {
+      if (!f.noForm || f.t === 'calc' || (['uStart', 'uHeight'].includes(f.k) && !sp.rackId)) return;
+      const v = (old.specs || {})[f.k]; if (v !== '' && v != null) sp[f.k] = v;
+    });
+    if (!sp.rackId) { delete sp.uStart; delete sp.uHeight; } // taken out of the rack: its position goes too
     vals.specs = sp;
   }
   m.fields.forEach(f => {
@@ -160,7 +166,9 @@ export const HOOKS = {
       if (old && SYS_STATUSES.includes(prevSt) && d.status !== prevSt) return `This asset is “${prevSt}”. Close the related assignment / temporary issue / repair / maintenance record first.`;
       if (d.connSwitch) { if (d.connSwitch === oid) return 'An asset cannot be connected to itself'; if (d.connPort) { const u = portUsers(d.connSwitch, oid)[d.connPort]; if (u) return `Port ${d.connPort} on ${tagOf(d.connSwitch)} is already used by ${u}`; } }
       const s = d.specs || {};
-      if (s.rackId && specsFor(d.categoryId).some(f => f.k === 'uStart')) { const e = rackCheck(s.rackId, s.uStart, s.uHeight, oid); if (e) return e; }
+      const uSt = specsFor(d.categoryId).find(f => f.k === 'uStart');
+      // where Start U is not in the form (Router), the device may be "in this rack" until it is positioned on the Rack Layout page
+      if (s.rackId && uSt && !(uSt.noForm && !s.uStart)) { const e = rackCheck(s.rackId, s.uStart, s.uHeight, oid); if (e) return e; }
       else if (s.uStart) return 'Select the rack before entering Start U';
       if (s.recorder) {
         const n = getA(s.recorder); if (!n) return 'Recording NVR not found'; const tot = parseInt((n.specs || {}).channels) || 0;

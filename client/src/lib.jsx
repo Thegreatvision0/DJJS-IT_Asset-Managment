@@ -108,7 +108,7 @@ export async function downloadXLSX(rows, name, title) {
   const head = rows[0].map(h => String(h ?? '')), body = rows.slice(1), n = Math.max(1, head.length);
   const wb = new ExcelJS.Workbook(); wb.creator = 'DJJS IT Asset Management'; wb.created = new Date();
   const ws = wb.addWorksheet(String(title || name).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Sheet1', {
-    views: [{ state: 'frozen', ySplit: 4 }],
+    views: [{ state: 'frozen', ySplit: 3 }],
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9, margins: { left: .4, right: .4, top: .5, bottom: .5, header: .3, footer: .3 } },
     headerFooter: { oddFooter: '&L&8DJJS IT Asset Management&R&8Page &P of &N' },
   });
@@ -122,8 +122,8 @@ export async function downloadXLSX(rows, name, title) {
   ws.getCell(2, 1).font = { italic: true, size: 10, color: { argb: 'FF5F6B80' } };
   if (n > 1) { ws.mergeCells(1, 1, 1, n); ws.mergeCells(2, 1, 2, n); }
   ws.getRow(1).height = 22;
-  // highlighted header row
-  const hr = ws.getRow(4); hr.height = 30;
+  // highlighted header row, straight under the title (no empty row)
+  const hr = ws.getRow(3); hr.height = 30;
   head.forEach((h, i) => { const c = hr.getCell(i + 1); c.value = h;
     c.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
@@ -132,7 +132,7 @@ export async function downloadXLSX(rows, name, title) {
   // data rows: aligned, bordered, striped
   const widths = head.map(h => Math.min(40, h.length + 4));
   body.forEach((r, ri) => {
-    const row = ws.getRow(5 + ri);
+    const row = ws.getRow(4 + ri);
     for (let i = 0; i < n; i++) {
       let v = r[i]; const c = row.getCell(i + 1); const isNum = typeof v === 'number' && isFinite(v);
       if (v == null) v = ''; c.value = isNum ? v : String(v);
@@ -145,7 +145,7 @@ export async function downloadXLSX(rows, name, title) {
     }
   });
   ws.columns.forEach((col, i) => { col.width = Math.max(8, widths[i] || 10); });
-  if (head.length) ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4 + body.length, column: n } };
+  if (head.length) ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3 + body.length, column: n } };
   const buf = await wb.xlsx.writeBuffer();
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   a.download = String(name).replace(/[^\w-]+/g, '_') + '_' + new Date().toISOString().slice(0, 10) + '.xlsx'; document.body.appendChild(a); a.click(); a.remove();

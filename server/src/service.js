@@ -249,6 +249,7 @@ export async function ensureInitialised(adminPassword) {
   if (!(await st.isEmpty())) {
     const d = await st.loadAll();
     if (!d.masters) await st.saveSettings(Object.assign(clone(DEFAULT_MASTERS), { catGroups: clone(DEFAULT_CAT_GROUPS), customSpecs: {}, catFields: {}, hiddenSpecs: {} }), 3);
+    else await migrateMasters(st, d);
     return false;
   }
   if (!adminPassword && config.production) throw new Error('ADMIN_PASSWORD must be set to create the first administrator in production');
@@ -259,6 +260,18 @@ export async function ensureInitialised(adminPassword) {
   await st.addAudit([{ id: uid(), at: new Date().toISOString(), user: 'System', action: 'Initialised', module: 'System', ref: '', detail: 'Default roles and admin user created' }]);
   console.log(`[init] Empty database — created user "admin" with ${adminPassword ? 'the ADMIN_PASSWORD from .env' : 'password admin123 (change it after logging in)'}`);
   return true;
+}
+/* one-time changes to saved category groups (each runs once per database) */
+async function migrateMasters(st, d) {
+  const m = d.masters; if (!m.catGroups) return; const done = Array.isArray(m.migrations) ? m.migrations : []; let changed = false;
+  if (!done.includes('2026-11-pdu-network')) { // Rack PDU moves to Network & Rack; All-in-One is dropped when no asset uses it
+    const G = m.catGroups; Object.keys(G).forEach(g => { G[g] = G[g].filter(c => c !== 'Rack PDU'); });
+    if (G['Network & Rack']) { const i = G['Network & Rack'].indexOf('Rack'); G['Network & Rack'].splice(i >= 0 ? i + 1 : 0, 0, 'Rack PDU'); }
+    else (G['Data Centre'] = G['Data Centre'] || []).push('Rack PDU');
+    if (G['Computing (End User)'] && !(d.assets || []).some(a => a.categoryId === 'All-in-One')) G['Computing (End User)'] = G['Computing (End User)'].filter(c => c !== 'All-in-One');
+    done.push('2026-11-pdu-network'); changed = true;
+  }
+  if (changed) { m.migrations = done; await st.saveSettings(m, d.ver || 3); console.log('[init] Category groups updated'); }
 }
 export function restoreBackup(data, user) {
   return serial(async () => {

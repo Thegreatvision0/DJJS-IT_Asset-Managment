@@ -13,7 +13,7 @@ function listCols(mod, cat) {
   if (mod !== 'assets' || !cat) return { cols: m.cols.map(k => fmap[k]), fmap };
   const p = profile(cat);
   const base = ['assetTag', 'name', ...['manufacturer', 'model', 'serialNumber', 'ipAddress'].filter(k => p.show.includes(k)), 'locationId', 'status'];
-  const sp = specsFor(cat).slice(0, 6).map(f => ({ ...f, k: 'sp_' + f.k, _sk: f.k, listOnly: 1, calc: r => f.t === 'calc' ? f.calc(r.specs || {}, r) : (r.specs || {})[f.k] }));
+  const sp = specsFor(cat).filter(f => !f.noForm).slice(0, 6).map(f => ({ ...f, k: 'sp_' + f.k, _sk: f.k, listOnly: 1, calc: r => f.t === 'calc' ? f.calc(r.specs || {}, r) : (r.specs || {})[f.k] }));
   return { cols: [...base.map(k => fmap[k]), ...sp], fmap };
 }
 const sortVal = (mod, f, r) => { const v = f.listOnly ? f.calc(r) : r[f.k]; if (f.k === 'status') return dispStatus(mod, r) || ''; if ((f.t === 'number' || f.t === 'calc') && v !== '' && v != null && !isNaN(v)) return Number(v); return dispText(f, v); };
@@ -61,7 +61,7 @@ export default function ListPage({ mod, params }) {
   const xv = (f, v) => (f.t === 'number' || f.t === 'calc') && v !== '' && v != null && typeof v !== 'boolean' && !isNaN(v) ? Number(v) : dispText(f, v);
   const exportXLSX = async () => {
     const fs = m.fields.filter(f => f.k && f.t !== 'password'); let sp = [];
-    if (isA) { const seen = {}; rows.forEach(r => specsFor(r.categoryId).forEach(f => { if (!seen[f.k]) { seen[f.k] = 1; sp.push(f); } })); }
+    if (isA) { const seen = {}; rows.forEach(r => specsFor(r.categoryId).forEach(f => { if (!f.noForm && !seen[f.k]) { seen[f.k] = 1; sp.push(f); } })); }
     const title = isA && (cat || grp) ? (cat || grp) : m.title;
     setExporting(true);
     try { await downloadXLSX([[...fs.map(f => f.l), ...sp.map(f => f.l)], ...rows.map(r => [...fs.map(f => f.k === 'status' ? dispStatus(mod, r) : xv(f, f.listOnly ? f.calc(r) : r[f.k])), ...sp.map(f => xv(f, f.t === 'calc' ? f.calc(r.specs || {}, r) : (r.specs || {})[f.k]))])], isA && grp ? (cat || grp) : mod, title); }
