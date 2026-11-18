@@ -11,9 +11,12 @@
     "seed": "node src/seed.js",
     "create-admin": "node src/createAdmin.js"
   },
-  "engines": { "node": ">=20.12" },
+  "engines": {
+    "node": ">=20.12"
+  },
   "dependencies": {
     "express": "^4.21.2",
+    "ldapts": "^8.2.0",
     "mongoose": "^8.9.5"
   }
 }

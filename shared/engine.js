@@ -148,6 +148,8 @@ export function setAssetStatus(ctx, id, st, why) {
   const a = getA(id); if (!a || a.status === st) return;
   const old = a.status; a.status = st; ctx.touch('assets', a); ctx.audit('Status change', 'assets', a, `${old} → ${st} (${why})`);
 }
+/** the last active administrator who signs in with an app password (the way in when the domain is unreachable) */
+export function isLastLocalAdmin(u) { const admins = (DB.users || []).filter(x => x.active !== 'No' && x.authSource !== 'Active Directory' && ((DB.roles || []).find(r => r.id === x.roleId) || {}).all); return admins.length === 1 && admins[0].id === u.id; }
 export function isLastAdmin(u) { const admins = (DB.users || []).filter(x => x.active !== 'No' && ((DB.roles || []).find(r => r.id === x.roleId) || {}).all); return admins.length === 1 && admins[0].id === u.id; }
 
 /* ---------- business rules: validate(data, old, ctx) → error string; after(rec, isNew, prev, ctx) ---------- */
@@ -298,7 +300,8 @@ export const HOOKS = {
   users: {
     validate(d, old) {
       if (DB.users.some(u => (!old || u.id !== old.id) && u.username.toLowerCase() === d.username.toLowerCase())) return 'Username already taken';
-      if (!old && (d.password || '').length < 6) return 'Password must be at least 6 characters';
+      if (!old && d.authSource !== 'Active Directory' && (d.password || '').length < 6) return 'Password must be at least 6 characters';
+      if (old && isLastLocalAdmin(old) && (d.authSource === 'Active Directory' || d.active === 'No' || !((DB.roles.find(r => r.id === d.roleId) || {}).all))) return 'Keep at least one active administrator who signs in with an app password (the way in if the domain is unreachable)';
       if (old && isLastAdmin(old) && (d.active === 'No' || !((DB.roles.find(r => r.id === d.roleId) || {}).all))) return 'At least one active System Administrator is required';
     },
   },
@@ -411,7 +414,7 @@ export const ACTIONS = {
     { id: 'addHistory', hidden: true, fields: () => [{ k: 'at', l: 'Date', t: 'date', r: 1, def: today }, { k: 'field', l: 'Type', t: 'select', o: ['Promotion', 'Transfer', 'Role Change', 'Training', 'Award / Recognition', 'Leave', 'Note'], r: 1 }, { k: 'to', l: 'Details', t: 'textarea', r: 1, full: 1 }],
       run(ctx, p, o) { p.history = p.history || []; p.history.push({ at: o.at, field: o.field, from: '', to: o.to, by: ctx.user.name }); ctx.audit('History entry', 'employees', p, o.field); } }],
   vendors: [{ id: 'history', l: 'History', perm: 'v', client: true }],
-  users: [{ id: 'resetPassword', l: 'Reset Password', fields: () => [{ k: 'pw', l: 'New Password', t: 'password', r: 1 }, { k: 'pw2', l: 'Confirm Password', t: 'password', r: 1 }],
+  users: [{ id: 'resetPassword', l: 'Reset Password', show: u => u.authSource !== 'Active Directory', fields: () => [{ k: 'pw', l: 'New Password', t: 'password', r: 1 }, { k: 'pw2', l: 'Confirm Password', t: 'password', r: 1 }],
     run(ctx, u, o) { if (String(o.pw).length < 6) return 'Password must be at least 6 characters'; if (o.pw !== o.pw2) return 'Passwords do not match'; ctx.setPassword(u, o.pw); ctx.audit('Password reset', 'users', u); ctx.notice('Password changed for ' + u.username); } }],
 };
 export const findAction = (mod, id) => (Object.hasOwn(ACTIONS, mod) ? ACTIONS[mod] : []).find(a => a.id === id);

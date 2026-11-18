@@ -42,7 +42,8 @@ export default function ListPage({ mod, params }) {
   if (cat) rows = rows.filter(r => r.categoryId === cat);
   const ql = q.toLowerCase();
   if (ql) rows = rows.filter(r => m.fields.some(f => f.k && String(f.listOnly ? f.calc(r) : dispText(f, r[f.k]) || '').toLowerCase().includes(ql)) || (r.specs && Object.values(r.specs).join(' ').toLowerCase().includes(ql)));
-  (m.filters || []).forEach(k => { if (filters[k]) rows = rows.filter(r => String(k === 'status' ? dispStatus(mod, r) : r[k]) === filters[k]); });
+  // a blank value counts as the field's default (e.g. vendors saved before "Vendor Type" existed are Offline)
+  (m.filters || []).forEach(k => { if (filters[k]) rows = rows.filter(r => String(k === 'status' ? dispStatus(mod, r) : (r[k] === '' || r[k] == null) && typeof fmap[k].def === 'string' ? fmap[k].def : r[k]) === filters[k]); });
   /* drill-down from dashboard charts: date range on dk (first non-empty of comma-listed fields), x_<field>=a|b excludes values */
   const dks = (params.dk || '').split(',').filter(Boolean);
   if (dks.length && (params.from || params.to)) rows = rows.filter(r => { const d = String(dks.map(k => r[k]).find(Boolean) || '').slice(0, 10); return d && (!params.from || d >= params.from) && (!params.to || d <= params.to); });

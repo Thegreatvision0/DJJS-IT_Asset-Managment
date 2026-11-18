@@ -2,7 +2,7 @@
    Writes are serialised (one at a time) so numbering and cross-record checks stay consistent. */
 import { setDB, uid, clone, today, DEFAULT_MASTERS, COMBO_KEYS, specsFor, DEFAULT_CAT_GROUPS } from '../../shared/core.js';
 import { MODS, PERMS, canRole } from '../../shared/modules.js';
-import { normalize, validateFields, HOOKS, findAction, ConfirmNeeded, refOf, nextNo, refCount, isLastAdmin, OPEN_WORK } from '../../shared/engine.js';
+import { normalize, validateFields, HOOKS, findAction, ConfirmNeeded, refOf, nextNo, refCount, isLastAdmin, isLastLocalAdmin, OPEN_WORK } from '../../shared/engine.js';
 import { upgrade, defaultRoles } from '../../shared/seed.js';
 import { getStore, onWrite } from './store/index.js';
 import { hashPassword, isScryptHash } from './security.js';
@@ -139,6 +139,7 @@ export function deleteRecord(mod, id, user) {
     if (mod === 'users') guardUserChange(db, user, r);
     if (mod === 'users' && r.id === user.id) throw new HttpError(400, 'You cannot delete your own account');
     if (mod === 'users' && isLastAdmin(r)) throw new HttpError(400, 'At least one active System Administrator is required');
+    if (mod === 'users' && isLastLocalAdmin(r)) throw new HttpError(400, 'Keep at least one administrator who signs in with an app password');
     await getStore().deleteDoc(mod, id);
     const { ctx, audits } = makeCtx(db, user, true); ctx.audit('Deleted', mod, r); await getStore().addAudit(audits);
     return { deleted: { [mod]: [id] } };

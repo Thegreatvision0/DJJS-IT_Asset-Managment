@@ -25,8 +25,9 @@ export function createApp() {
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
     const status = err.status || (err.type === 'entity.parse.failed' ? 400 : 500);
-    if (status >= 500) console.error(err);
-    res.status(status).json({ error: status >= 500 ? 'Server error — please try again' : err.message, ...(err.extra || {}) });
+    const expected = !!err.status; // errors raised on purpose (HttpError, body parser) carry a status and a user-facing message
+    if (!expected) console.error(err);
+    res.status(status).json({ error: expected ? err.message : 'Server error — please try again', ...(err.extra || {}) });
   });
   return app;
 }
