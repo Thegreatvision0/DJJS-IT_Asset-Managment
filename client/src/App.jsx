@@ -12,11 +12,12 @@ import AuditLog from './pages/AuditLog.jsx';
 import Settings from './pages/Settings.jsx';
 import Roles from './pages/Roles.jsx';
 import Racks from './pages/Racks.jsx';
+import Assistant from './pages/Assistant.jsx';
 import Login from './pages/Login.jsx';
 import { Emblem } from './components/Brand.jsx';
 
 const NAV = [
-  ['Overview', [['dashboard', 'Dashboard'], ['alerts', 'Expiry & Alerts']]],
+  ['Overview', [['dashboard', 'Dashboard'], ['assistant', 'AI Assistant'], ['alerts', 'Expiry & Alerts']]],
   ['Assets', [['assets', 'Asset Inventory'], ['assignments', 'Assignments'], ['tempAssignments', 'Temporary Issue']]],
   ['Repairs & Service', [['repairJobs', 'Repair Inward'], ['repairDispatches', 'Repair Outward'], ['maintenance', 'Maintenance'], ['amcVisits', 'AMC Visits']]],
   ['Data Centre & Network', [['racks', 'Rack Layout'], ['networkLinks', 'Network & Fibre Links'], ['installations', 'Installations']]],
@@ -26,8 +27,8 @@ const NAV = [
   ['Reports', [['reports', 'Reports']]],
   ['Administration', [['users', 'Users'], ['roles', 'Roles & Permissions'], ['settings', 'Settings & Masters'], ['audit', 'Audit Log']]],
 ];
-export const VIEW_TITLE = { dashboard: 'Dashboard', alerts: 'Expiry & Alerts', reports: 'Reports', audit: 'Audit Log', settings: 'Settings & Masters', roles: 'Roles & Permissions', racks: 'Rack Layout' };
-const PAGES = { dashboard: Dashboard, alerts: Alerts, reports: Reports, audit: AuditLog, settings: Settings, roles: Roles, racks: Racks };
+export const VIEW_TITLE = { assistant: 'AI Assistant', dashboard: 'Dashboard', alerts: 'Expiry & Alerts', reports: 'Reports', audit: 'Audit Log', settings: 'Settings & Masters', roles: 'Roles & Permissions', racks: 'Rack Layout' };
+const PAGES = { assistant: Assistant, dashboard: Dashboard, alerts: Alerts, reports: Reports, audit: AuditLog, settings: Settings, roles: Roles, racks: Racks };
 
 /* main modules only — asset categories are browsed from the Asset Inventory page */
 function Sidebar({ view, open, onNav, foot }) {

@@ -37,7 +37,7 @@ export function AppProvider({ children }) {
 
   const load = useCallback(async () => {
     const b = await api('/bootstrap');
-    db.current = Object.assign({ masters: b.masters }, b.data); setDB(db.current);
+    db.current = Object.assign({ masters: b.masters }, b.data, { assistantOn: !!b.assistant }); setDB(db.current);
     setMe(b.me); setReady(true); bump();
   }, []);
   const login = async (username, password) => { const r = await api('/auth/login', { method: 'POST', body: { username, password } }); putToken(r.token); await load(); };
@@ -58,7 +58,7 @@ export function AppProvider({ children }) {
     catch (e) { if (e.status !== 409) throw e; return null; }
   }, [apply, toast]);
 
-  const can = (mod, act = 'v') => !!me && canRole((db.current || {}).roles, me, mod, act);
+  const can = (mod, act = 'v') => !!me && (mod !== 'assistant' || !!(db.current || {}).assistantOn) && canRole((db.current || {}).roles, me, mod, act);
   const openModal = el => setModals(m => [...m, el]);
   const closeModal = () => setModals(m => m.slice(0, -1));
   useEffect(() => { // Esc closes the top pop-up

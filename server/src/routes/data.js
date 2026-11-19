@@ -2,6 +2,7 @@ import express from 'express';
 import { getStore } from '../store/index.js';
 import { requireAuth } from '../auth.js';
 import { MODS } from '../../../shared/modules.js';
+import { chat as assistantChat, assistantEnabled } from '../assistant.js';
 import { can, publicUser, saveRecord, deleteRecord, runAction, patchSettings, addComboValue, saveRole, deleteRole, restoreBackup, HttpError } from '../service.js';
 
 const r = express.Router();
@@ -19,7 +20,7 @@ r.get('/bootstrap', (req, res, next) => send(res, next)((async () => {
     else if (m === 'roles') data.roles = db.roles;
     else data[m] = can(db, u, m, 'v') ? db[m] : db[m].map(x => pick(x, MIN));
   });
-  return { me: publicUser(u), masters: db.masters, data, store: getStore().name };
+  return { me: publicUser(u), masters: db.masters, data, store: getStore().name, assistant: assistantEnabled() && can(db, u, 'assistant', 'v') };
 })()));
 
 r.post('/settings/combo', (req, res, next) => send(res, next)(addComboValue(req.body.key, req.body.value, req.user)));
@@ -39,6 +40,9 @@ r.get('/audit', (req, res, next) => send(res, next)((async () => {
   }
   return { entries: await getStore().listAudit({ q, user, ref, limit }), users: await getStore().auditUsers() };
 })()));
+
+/* AI Assistant: one chat turn (read-only tools, the user's own permissions) */
+r.post('/assistant', (req, res, next) => send(res, next)(assistantChat(req.user, (req.body || {}).history, (req.body || {}).text, (req.body || {}).sig)));
 
 r.get('/backup', (req, res, next) => send(res, next)((async () => {
   const db = req.db; if (!(db.roles.find(x => x.id === req.user.roleId) || {}).all) throw new HttpError(403, 'Only a System Administrator can export a full backup');

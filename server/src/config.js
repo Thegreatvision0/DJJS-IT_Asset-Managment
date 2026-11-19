@@ -31,6 +31,7 @@ export const config = {
     label: String(env.AD_LABEL || '').trim() || String(env.AD_DOMAIN || '').split('.')[0].toUpperCase(),
   },
   // HTTPS (office server): a .pfx certificate, or a PEM certificate + key
+  anthropicKey: String(env.ANTHROPIC_API_KEY || '').trim(), // AI Assistant (off when empty)
   publicHost: String(env.PUBLIC_HOST || '').trim(), // site name used for http → https redirects
   https: { pfx: env.HTTPS_PFX || '', pfxPass: env.HTTPS_PFX_PASS || '', cert: env.HTTPS_CERT || '', key: env.HTTPS_KEY || '', port: Number(env.HTTPS_PORT) || 443 },
 };

@@ -402,7 +402,7 @@ export const PERMS = [
   ['contracts', 'AMC / Contracts', 'vaed'], ['licences', 'Software Licences', 'vaed'], ['certificates', 'Certificates', 'vaed'],
   ['vendors', 'Vendors', 'vaed'], ['purchases', 'Purchases', 'vaedx'],
   ['employees', 'Employees & Sewadars', 'vaed'], ['locations', 'Locations', 'vaed'],
-  ['reports', 'Reports', 'v'], ['audit', 'Audit Log', 'v'], ['settings', 'Settings & Masters', 've'], ['users', 'Users', 'vaed'], ['roles', 'Roles & Permissions', 've'],
+  ['reports', 'Reports', 'v'], ['assistant', 'AI Assistant', 'v'], ['audit', 'Audit Log', 'v'], ['settings', 'Settings & Masters', 've'], ['users', 'Users', 'vaed'], ['roles', 'Roles & Permissions', 've'],
 ];
 export const ACT_LABEL = { v: 'View', a: 'Add', e: 'Edit', d: 'Delete', x: 'Approve' };
 /* Permission check for a user given the roles list */
