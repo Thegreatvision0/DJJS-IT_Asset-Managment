@@ -1,17 +1,18 @@
 /* Default roles/users, sample data (fictional) and data upgrade for older backups */
-import { DB, setDB, VER, DEFAULT_MASTERS, DEFAULT_CAT_GROUPS, OLD_CAT_MAP, CAMERA_CATS, clone, uid, dd, num, fmtD } from './core.js';
+import { DB, setDB, VER, MIGRATIONS, DEFAULT_MASTERS, DEFAULT_CAT_GROUPS, OLD_CAT_MAP, CAMERA_CATS, clone, uid, dd, num, fmtD } from './core.js';
 import { MODS, PERMS } from './modules.js';
 /** Upgrade a dataset (e.g. an old browser backup) to the current version. */
 export function upgrade(data, hash) { setDB(data); migrate(hash); return data; }
 export function permSet(fn) { const p = {}; PERMS.forEach(([k, , acts]) => { const a = fn(k, acts); if (a) { p[k] = {}; [...a].forEach(x => { if (acts.includes(x)) p[k][x] = true; }); } }); return p; }
 export function defaultRoles() {
-  const ops = ['assets', 'assignments', 'tempAssignments', 'repairJobs', 'repairDispatches', 'maintenance', 'amcVisits', 'installations', 'networkLinks', 'racks'];
+  const ops = ['assets', 'assignments', 'tempAssignments', 'repairJobs', 'repairDispatches', 'maintenance', 'amcVisits', 'installations', 'networkLinks', 'racks', 'endpoints'];
   return [
     { id: 'r_admin', name: 'System Administrator', all: true, system: true },
-    { id: 'r_mgr', name: 'IT Asset Manager', perms: permSet((k, acts) => ['users', 'roles'].includes(k) ? 'v' : acts) },
-    { id: 'r_support', name: 'IT Support Staff', perms: permSet(k => ['users', 'roles', 'settings', 'audit'].includes(k) ? '' : ops.includes(k) ? 'vae' : 'v') },
+    // the AI Assistant is for administrators: other roles get it only when an admin ticks it
+    { id: 'r_mgr', name: 'IT Asset Manager', perms: permSet((k, acts) => k === 'assistant' ? '' : ['users', 'roles'].includes(k) ? 'v' : acts) },
+    { id: 'r_support', name: 'IT Support Staff', perms: permSet(k => ['users', 'roles', 'settings', 'audit', 'assistant'].includes(k) ? '' : ops.includes(k) ? 'vae' : 'v') },
     { id: 'r_coord', name: 'Department Coordinator', perms: permSet(k => ({ dashboard: 'v', assets: 'v', tempAssignments: 'va', repairJobs: 'va', reports: 'v' })[k] || '') },
-    { id: 'r_audit', name: 'Auditor (Read-only)', perms: permSet(k => ['users', 'roles'].includes(k) ? '' : 'v') },
+    { id: 'r_audit', name: 'Auditor (Read-only)', perms: permSet(k => ['users', 'roles', 'assistant'].includes(k) ? '' : 'v') },
   ];
 }
 export function defaultUsers(hash) {
@@ -47,7 +48,7 @@ export function migrate(hash) {
 
 /* ---------------- Sample data (fictional) ---------------- */
 export function seed(hash) {
-  const D = { ver: VER, masters: Object.assign(clone(DEFAULT_MASTERS), { catGroups: clone(DEFAULT_CAT_GROUPS), customSpecs: {}, catFields: {}, hiddenSpecs: {} }), audit: [], counters: {}, roles: defaultRoles(), users: defaultUsers(hash) };
+  const D = { ver: VER, masters: Object.assign(clone(DEFAULT_MASTERS), { catGroups: clone(DEFAULT_CAT_GROUPS), customSpecs: {}, catFields: {}, hiddenSpecs: {}, migrations: [...MIGRATIONS] }), audit: [], counters: {}, roles: defaultRoles(), users: defaultUsers(hash) };
   Object.keys(MODS).forEach(k => { if (!['users', 'roles'].includes(k)) D[k] = []; });
   D.masters.technicians = ['Rajiv (Shree Computers)', 'Deepak (VisionCam)', 'Manpreet (NetSecure)'];
   const now = new Date().toISOString();

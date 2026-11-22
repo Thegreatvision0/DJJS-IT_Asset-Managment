@@ -20,6 +20,7 @@ export function alertItems() {
 }
 export function opsAlerts() {
   const L = [];
+  const pend = (DB.endpoints || []).filter(e => String(e.compliance || '').startsWith('Pending')).length; if (pend) L.push(['warn', `${pend} endpoint(s) not fully compliant (SCCM / AD / Office 365 / OneDrive)`, 'endpoints']);
   DB.tempAssignments.filter(r => r.status === 'Requested').forEach(r => L.push(['warn', `Temporary issue ${String(r.issueNumber)} waiting for approval — ${String(r.borrowerName)}`, 'tempAssignments']));
   DB.tempAssignments.filter(r => dispStatus('tempAssignments', r) === 'Overdue').forEach(r => L.push(['bad', `Temporary issue ${String(r.issueNumber)} overdue by ${-daysTo(r.dueAt)} day(s) — ${String(label('assets', r.assetId))} with ${String(r.borrowerName)}`, 'tempAssignments']));
   DB.repairDispatches.filter(r => dispStatus('repairDispatches', r) === 'Overdue at Vendor').forEach(r => L.push(['bad', `Gate pass ${String(r.gatePassNumber)} pending at ${String(label('vendors', r.vendorId))} ${-daysTo(r.expectedReturnAt)} day(s) past expected return`, 'repairDispatches']));

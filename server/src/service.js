@@ -1,6 +1,6 @@
 /* Runs every change through the shared engine: load → validate → apply → business rules → persist → audit.
    Writes are serialised (one at a time) so numbering and cross-record checks stay consistent. */
-import { setDB, uid, clone, today, DEFAULT_MASTERS, COMBO_KEYS, specsFor, DEFAULT_CAT_GROUPS } from '../../shared/core.js';
+import { setDB, uid, clone, today, MIGRATIONS, DEFAULT_MASTERS, COMBO_KEYS, specsFor, DEFAULT_CAT_GROUPS } from '../../shared/core.js';
 import { MODS, PERMS, canRole } from '../../shared/modules.js';
 import { normalize, validateFields, HOOKS, findAction, ConfirmNeeded, refOf, nextNo, refCount, isLastAdmin, isLastLocalAdmin, OPEN_WORK } from '../../shared/engine.js';
 import { upgrade, defaultRoles } from '../../shared/seed.js';
@@ -249,7 +249,7 @@ export async function ensureInitialised(adminPassword) {
   const st = getStore();
   if (!(await st.isEmpty())) {
     const d = await st.loadAll();
-    if (!d.masters) await st.saveSettings(Object.assign(clone(DEFAULT_MASTERS), { catGroups: clone(DEFAULT_CAT_GROUPS), customSpecs: {}, catFields: {}, hiddenSpecs: {} }), 3);
+    if (!d.masters) await st.saveSettings(Object.assign(clone(DEFAULT_MASTERS), { catGroups: clone(DEFAULT_CAT_GROUPS), customSpecs: {}, catFields: {}, hiddenSpecs: {}, migrations: [...MIGRATIONS] }), 3);
     else await migrateMasters(st, d);
     return false;
   }
@@ -257,7 +257,7 @@ export async function ensureInitialised(adminPassword) {
   const roles = defaultRoles(); const pw = adminPassword || 'admin123';
   const admin = { id: 'u_admin', username: 'admin', name: 'IT Administrator', roleId: 'r_admin', department: 'IT', active: 'Yes', pwHash: hashPassword(pw), createdAt: new Date().toISOString(), createdBy: 'System' };
   await st.saveDocs('roles', roles); await st.saveDocs('users', [admin]);
-  await st.saveSettings(Object.assign(clone(DEFAULT_MASTERS), { catGroups: clone(DEFAULT_CAT_GROUPS), customSpecs: {}, catFields: {}, hiddenSpecs: {} }), 3);
+  await st.saveSettings(Object.assign(clone(DEFAULT_MASTERS), { catGroups: clone(DEFAULT_CAT_GROUPS), customSpecs: {}, catFields: {}, hiddenSpecs: {}, migrations: [...MIGRATIONS] }), 3);
   await st.addAudit([{ id: uid(), at: new Date().toISOString(), user: 'System', action: 'Initialised', module: 'System', ref: '', detail: 'Default roles and admin user created' }]);
   console.log(`[init] Empty database — created user "admin" with ${adminPassword ? 'the ADMIN_PASSWORD from .env' : 'password admin123 (change it after logging in)'}`);
   return true;
@@ -271,6 +271,12 @@ async function migrateMasters(st, d) {
     else (G['Data Centre'] = G['Data Centre'] || []).push('Rack PDU');
     if (G['Computing (End User)'] && !(d.assets || []).some(a => a.categoryId === 'All-in-One')) G['Computing (End User)'] = G['Computing (End User)'].filter(c => c !== 'All-in-One');
     done.push('2026-11-pdu-network'); changed = true;
+  }
+  if (!done.includes('2026-11-endpoints-roles')) { // new Endpoint Register: each role gets the same rights it already has on Asset Inventory
+    const roles = (d.roles || []).filter(r => !r.all && r.perms && r.perms.assets && !r.perms.endpoints);
+    roles.forEach(r => { r.perms.endpoints = { ...r.perms.assets }; });
+    if (roles.length) { await st.saveDocs('roles', roles); console.log('[init] Endpoint Register access given to ' + roles.map(r => r.name).join(', ')); }
+    done.push('2026-11-endpoints-roles'); changed = true;
   }
   if (changed) { m.migrations = done; await st.saveSettings(m, d.ver || 3); console.log('[init] Category groups updated'); }
 }

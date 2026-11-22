@@ -1,6 +1,6 @@
 /* One form field of any type defined in shared/modules.js */
 import React from 'react';
-import { DB, M, comboList, optLabel, live, portOpts, fmtDT, money, tagOf, label } from '@shared/core.js';
+import { DB, M, COMBO_KEYS, comboList, optLabel, live, portOpts, fmtDT, money, tagOf, label } from '@shared/core.js';
 import { api, useApp } from '../lib.jsx';
 
 export const normOpts = opts => (opts || []).map(o => o && typeof o === 'object' && !Array.isArray(o) ? o : Array.isArray(o) ? { v: o[0], l: o[1] } : { v: o, l: o });
@@ -24,7 +24,7 @@ export function CategorySelect({ id, value, onChange, disabled }) {
 export const calcText = (f, v) => v === '' || v == null ? '' : /cost|amount|Cost|Amount/.test(f.k) && !isNaN(v) ? money(v) : String(v);
 
 export default function Field({ f, value, onChange, ctxVals = {}, rec, mod, view, required, bad, idPrefix = 'fld_' }) {
-  const { apply, toast } = useApp();
+  const { apply, toast, can } = useApp();
   const id = idPrefix + f.k; const dis = !!(view || f.ro || f.t === 'calc');
   let inp;
   switch (f.t) {
@@ -36,7 +36,8 @@ export default function Field({ f, value, onChange, ctxVals = {}, rec, mod, view
         try { const r = await api('/settings/combo', { method: 'POST', body: { key: f.o, value: nv } }); apply({ masters: r.masters }); onChange(r.value); toast(`“${r.value}” added — it will be in the list from now on`); }
         catch (e) { toast(e.message, 1); }
       };
-      inp = <Select id={id} opts={comboList(f.o)} value={value} onChange={pick} disabled={dis} extraNew={!dis} />; break;
+      // master lists such as Departments can only be extended by settings editors, so only they see "add new"
+      inp = <Select id={id} opts={comboList(f.o)} value={value} onChange={pick} disabled={dis} extraNew={!dis && (COMBO_KEYS.includes(f.o) || can('settings', 'e'))} />; break;
     }
     case 'ref': { let list = DB[f.c] || []; if (f.filter && !view) list = list.filter(r => r.id === value || f.filter(r)); inp = <Select id={id} opts={list.map(r => [r.id, optLabel(f.c, r)])} value={value} onChange={onChange} disabled={dis} />; break; }
     case 'aref': {

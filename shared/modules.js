@@ -290,6 +290,47 @@ export const MODS = {
       { k: '_visits', l: 'Visits (PM done / due)', listOnly: 1, calc: r => { const v = DB.amcVisits.filter(x => x.contractId === r.id && x.status !== 'Cancelled'); const pm = v.filter(x => /Preventive/.test(x.visitType)).length; return `${pm} / ${r.visitsPerYear || '-'}` + (v.length - pm ? ` · ${v.length - pm} calls` : ''); } },
     ] },
 
+  /* one row per user PC / laptop: hardware configuration plus the IT compliance checklist (SCCM, AD, Office 365, OneDrive) */
+  endpoints: { title: 'Endpoint Register', one: 'Endpoint', prefix: 'EP-', numKey: 'refNo',
+    cols: ['refNo', 'department', 'hostname', 'systemModel', 'processor', 'ram', 'storage', 'os', 'userName', 'sccm', 'adUpdate', 'office365', 'oneDrive', 'compliance'],
+    filters: ['department', 'os', 'domain', 'sccm', 'adUpdate', 'office365', 'oneDrive'],
+    flow: ['Add each user system', 'Tick SCCM / AD / Office 365 / OneDrive', 'Compliance column shows what is pending'],
+    fields: [
+      { t: 'sec', l: 'System' },
+      { k: 'refNo', l: 'Sr. No.', ro: 1 },
+      { k: 'department', l: 'Department', t: 'combo', o: 'departments', r: 1 },
+      { k: 'hostname', l: 'Hostname', r: 1, hint: 'Computer name, e.g. NRM-IT-PC01' },
+      { k: 'systemModel', l: 'System Model', hint: 'e.g. Dell OptiPlex 7010, HP ProDesk 400 G9' },
+      { k: 'assetId', l: 'Linked Asset (optional)', t: 'aref', cats: ['Desktop', 'Laptop', 'All-in-One', 'Thin Client', 'Server'], hint: 'Link to the asset record, if this computer is in Asset Inventory' },
+      { k: 'locationId', l: 'Location', t: 'ref', c: 'locations' },
+      { t: 'sec', l: 'Configuration' },
+      { k: 'processor', l: 'Processor / Generation', r: 1, hint: 'e.g. i5-14400, i7-12700, Ryzen 5 5600G' },
+      { k: 'ram', l: 'RAM', t: 'select', o: ['2 GB', '4 GB', '8 GB', '12 GB', '16 GB', '24 GB', '32 GB', '64 GB', '128 GB'], r: 1 },
+      { k: 'storage', l: 'Storage', t: 'select', o: ['128 GB', '256 GB', '500 GB', '512 GB', '1 TB', '2 TB', '4 TB', '1 TB + 256 GB SSD', '2 TB + 512 GB SSD'], r: 1 },
+      { k: 'gpu', l: 'GPU', def: 'N/A', hint: 'N/A if no separate graphics card' },
+      { k: 'os', l: 'Operating System', t: 'select', o: ['Windows 11 Pro', 'Windows 11 Home', 'Windows 10 Pro', 'Windows 10 Home', 'Windows Server 2022', 'Windows Server 2019', 'Ubuntu / Linux', 'macOS', 'Other'], r: 1 },
+      { k: 'ipAddress', l: 'IP Address', v: 'ip' }, { k: 'macAddress', l: 'MAC Address', v: 'mac' },
+      { t: 'sec', l: 'User & Domain' },
+      { k: 'userName', l: 'User', t: 'combo', o: 'persons', r: 1 },
+      { k: 'domain', l: 'Domain', t: 'select', o: ['Domain (NRM)', 'Workgroup'], def: 'Domain (NRM)', r: 1 },
+      { t: 'sec', l: 'Compliance Checklist' },
+      { k: 'sccm', l: 'SCCM Client', t: 'select', o: ['Installed', 'Installed – Not Reporting', 'Not Installed'], r: 1 },
+      { k: 'adUpdate', l: 'AD Update', t: 'select', o: ['Yes', 'No'], r: 1, hint: 'Computer and user details updated in Active Directory' },
+      { k: 'office365', l: 'MS Office 365', t: 'select', o: ['Licensed & Activated', 'Installed – Not Activated', 'Other Office Version', 'Not Installed'], r: 1 },
+      { k: 'oneDrive', l: 'OneDrive', t: 'select', o: ['Configured & Syncing', 'Installed – Not Configured', 'Not Installed'], r: 1 },
+      { k: 'compliance', l: 'Compliance', t: 'calc', calc: v => {
+        const miss = [];
+        if (v.domain && v.domain !== 'Domain (NRM)') miss.push('Domain');
+        if (v.sccm && v.sccm !== 'Installed') miss.push('SCCM');
+        if (v.adUpdate && v.adUpdate !== 'Yes') miss.push('AD');
+        if (v.office365 && v.office365 !== 'Licensed & Activated') miss.push('Office 365');
+        if (v.oneDrive && v.oneDrive !== 'Configured & Syncing') miss.push('OneDrive');
+        return miss.length ? 'Pending: ' + miss.join(', ') : 'Compliant';
+      } },
+      { k: 'lastCheckedAt', l: 'Last Checked On', t: 'date', def: today },
+      { k: 'remarks', l: 'Remarks', t: 'textarea', full: 1 },
+    ] },
+
   licences: { title: 'Software Licences', one: 'Licence', prefix: 'LIC-', numKey: 'refNo',
     cols: ['productName', 'publisher', 'licenceType', 'entitlementCount', 'allocatedCount', 'expiryDate', 'owner', 'renewalStatus'], filters: ['renewalStatus', 'licenceType'],
     fields: [
@@ -399,7 +440,7 @@ export const PERMS = [
   ['assets', 'Asset Inventory', 'vaed'], ['assignments', 'Assignments', 'vaed'], ['tempAssignments', 'Temporary Issue', 'vaedx'],
   ['repairJobs', 'Repair Inward', 'vaed'], ['repairDispatches', 'Repair Outward', 'vaedx'], ['maintenance', 'Maintenance', 'vaed'], ['amcVisits', 'AMC Visits', 'vaed'],
   ['racks', 'Rack Layout', 've'], ['installations', 'Installations', 'vaed'], ['networkLinks', 'Network & Fibre Links', 'vaed'],
-  ['contracts', 'AMC / Contracts', 'vaed'], ['licences', 'Software Licences', 'vaed'], ['certificates', 'Certificates', 'vaed'],
+  ['endpoints', 'Endpoint Register', 'vaed'], ['contracts', 'AMC / Contracts', 'vaed'], ['licences', 'Software Licences', 'vaed'], ['certificates', 'Certificates', 'vaed'],
   ['vendors', 'Vendors', 'vaed'], ['purchases', 'Purchases', 'vaedx'],
   ['employees', 'Employees & Sewadars', 'vaed'], ['locations', 'Locations', 'vaed'],
   ['reports', 'Reports', 'v'], ['assistant', 'AI Assistant', 'v'], ['audit', 'Audit Log', 'v'], ['settings', 'Settings & Masters', 've'], ['users', 'Users', 'vaed'], ['roles', 'Roles & Permissions', 've'],

@@ -18,6 +18,7 @@ r.get('/bootstrap', (req, res, next) => send(res, next)((async () => {
   Object.keys(MODS).forEach(m => {
     if (m === 'users') data.users = can(db, u, 'users', 'v') ? db.users.map(publicUser) : db.users.map(x => pick(x, ['id', 'name', 'active', 'department', 'roleId']));
     else if (m === 'roles') data.roles = db.roles;
+    else if (m === 'endpoints') data.endpoints = can(db, u, m, 'v') ? db.endpoints : []; // nothing else refers to endpoints, so users without access get none of them
     else data[m] = can(db, u, m, 'v') ? db[m] : db[m].map(x => pick(x, MIN));
   });
   return { me: publicUser(u), masters: db.masters, data, store: getStore().name, assistant: assistantEnabled() && can(db, u, 'assistant', 'v') };

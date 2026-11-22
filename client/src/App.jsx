@@ -18,7 +18,7 @@ import { Emblem } from './components/Brand.jsx';
 
 const NAV = [
   ['Overview', [['dashboard', 'Dashboard'], ['assistant', 'AI Assistant'], ['alerts', 'Expiry & Alerts']]],
-  ['Assets', [['assets', 'Asset Inventory'], ['assignments', 'Assignments'], ['tempAssignments', 'Temporary Issue']]],
+  ['Assets', [['assets', 'Asset Inventory'], ['endpoints', 'Endpoint Register'], ['assignments', 'Assignments'], ['tempAssignments', 'Temporary Issue']]],
   ['Repairs & Service', [['repairJobs', 'Repair Inward'], ['repairDispatches', 'Repair Outward'], ['maintenance', 'Maintenance'], ['amcVisits', 'AMC Visits']]],
   ['Data Centre & Network', [['racks', 'Rack Layout'], ['networkLinks', 'Network & Fibre Links'], ['installations', 'Installations']]],
   ['Compliance & Renewals', [['contracts', 'AMC / Contracts'], ['licences', 'Software Licences'], ['certificates', 'Certificates']]],

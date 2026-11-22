@@ -53,6 +53,8 @@ export const GONE = ['Retired', 'Lost', 'Stolen', 'Disposed'];
 export const live = a => a && !GONE.includes(a.status);
 
 /* ---------------- Hardware categories ---------------- */
+/** one-time data updates (server/src/service.js migrateMasters). New databases already match them, so they are stored as done. Add every new id here. */
+export const MIGRATIONS = ['2026-11-pdu-network', '2026-11-endpoints-roles'];
 export const DEFAULT_CAT_GROUPS = {
   'Network & Rack': ['Rack', 'Rack PDU', 'Patch Panel', 'Cable Manager', 'Switch', 'PoE Switch', 'Router', 'Firewall', 'Access Point', 'Wireless Controller', 'Modem / ONT'],
   'Fibre & OFC': ['OFC Cable', 'LIU / ODF', 'Fibre Joint Closure', 'Fibre Patch Cord', 'Pigtail', 'SFP Module', 'Media Converter'],

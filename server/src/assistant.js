@@ -129,7 +129,7 @@ async function runTool(name, input, db, user) {
     case 'alerts': {
       if (!can(db, user, 'alerts', 'v')) throw new Error('You do not have permission to view Expiry & Alerts.'); const d = Number.isFinite(input.within_days) ? input.within_days : 90;
       return clip(JSON.stringify({ expiring: alertItems().filter(a => a.days <= d).map(a => ({ type: a.type, ref: a.ref, item: a.name, due: fmtD(a.date), days_left: a.days, owner: a.owner, status: a.status })),
-        warnings: opsAlerts().map(([level, text]) => ({ level, text })) }));
+        warnings: opsAlerts().filter(x => !x[2] || can(db, user, x[2], 'v')).map(([level, text]) => ({ level, text })) }));
     }
     case 'run_report': {
       if (!can(db, user, 'reports', 'v')) throw new Error('You do not have permission to view Reports.'); const R = REPORTS[input.report]; if (!R) throw new Error('Unknown report');

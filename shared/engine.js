@@ -102,7 +102,7 @@ function typeCheck(f, v, old) {
   if (f.t === 'datetime' && !realDate(v)) return f.l + ' is not a valid date';
   if ((f.t === 'select' || (f.t === 'dyn' && Array.isArray(f.o))) && f.o) { const opts = Array.isArray(f.o) ? f.o : comboList(f.o); if (!opts.includes(v)) return `${f.l}: “${v.slice(0, 40)}” is not one of the allowed choices`; }
   if (f.t === 'ref' && f.c && DB[f.c] && !DB[f.c].some(r => r.id === v)) return f.l + ' refers to a record that does not exist';
-  if (f.t === 'aref' && !(DB.assets || []).some(a => a.id === v)) return f.l + ' refers to an asset that does not exist';
+  if (f.t === 'aref') { const a = (DB.assets || []).find(x => x.id === v); if (!a) return f.l + ' refers to an asset that does not exist'; if (f.cats && !f.cats.includes(a.categoryId)) return `${f.l}: ${a.assetTag} is a ${a.categoryId}, not one of ${f.cats.join(', ')}`; }
   return '';
 }
 /** open workflow records hold their asset in a workflow status — deleting one would leave the asset stuck */
@@ -297,6 +297,14 @@ export const HOOKS = {
     },
   },
   locations: { validate(d, old) { if (old && d.parentId === old.id) return 'A location cannot be its own parent'; let p = d.parentId, n = 0; while (p && n++ < 10) { if (old && p === old.id) return 'This would create a loop in the location tree'; p = (DB.locations.find(l => l.id === p) || {}).parentId; } } },
+  endpoints: {
+    validate(d, old) {
+      const h = String(d.hostname || '').trim().toLowerCase();
+      const o = DB.endpoints.find(e => e.id !== (old && old.id) && String(e.hostname || '').trim().toLowerCase() === h);
+      if (h && o) return `Hostname ${d.hostname} is already registered (${o.refNo} — ${o.userName || 'no user'})`;
+      if (d.lastCheckedAt && d.lastCheckedAt > today()) return 'Last checked date cannot be in the future';
+    },
+  },
   users: {
     validate(d, old) {
       if (DB.users.some(u => (!old || u.id !== old.id) && u.username.toLowerCase() === d.username.toLowerCase())) return 'Username already taken';
