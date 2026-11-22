@@ -445,3 +445,8 @@ img,svg{max-width:100%}
 .ai-in textarea{flex:1;resize:none;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
 .ai-note{font-size:11.5px;padding:0 12px 8px;background:#fff}
 @media (max-width:640px){.ai{height:calc(100vh - 96px);border-radius:0;margin:0 -12px}.ai-head span{display:none}.ai-msg{max-width:100%}}
+
+/* ---------- Excel import ---------- */
+.imp p{margin:0 0 8px}
+.imp-bad td{background:#fdecee}
+.imp-err{color:var(--maroon);font-size:12px;min-width:180px}

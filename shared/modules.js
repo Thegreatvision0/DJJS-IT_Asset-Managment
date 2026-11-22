@@ -292,6 +292,17 @@ export const MODS = {
 
   /* one row per user PC / laptop: hardware configuration plus the IT compliance checklist (SCCM, AD, Office 365, OneDrive) */
   endpoints: { title: 'Endpoint Register', one: 'Endpoint', prefix: 'EP-', numKey: 'refNo',
+    // Excel import: rows are matched to existing records by hostname; headings/words as used in the IT team's sheet
+    importKey: 'hostname',
+    importAliases: { refNo: ['sr no', 'srno', 's no', 'sl no'], processor: ['generation', 'genration', 'cpu', 'processor'], hostname: ['host name', 'computer name', 'pc name'],
+      userName: ['user', 'user name', 'username', 'employee'], os: ['operating system', 'os', 'windows'], office365: ['ms office365', 'ms office 365', 'office365', 'office 365', 'office'],
+      oneDrive: ['one drive', 'onedrive'], sccm: ['sccm', 'sccm client'], adUpdate: ['ad update', 'ad updated', 'ad'], systemModel: ['system model', 'model'], ipAddress: ['ip', 'ip address'], macAddress: ['mac', 'mac address'] },
+    importValues: {
+      sccm: { yes: 'Installed', y: 'Installed', done: 'Installed', ok: 'Installed', installed: 'Installed', activated: 'Installed', configured: 'Installed', no: 'Not Installed', n: 'Not Installed', na: 'Not Installed', notinstalled: 'Not Installed' }, office365: { yes: 'Licensed & Activated', y: 'Licensed & Activated', done: 'Licensed & Activated', ok: 'Licensed & Activated', installed: 'Licensed & Activated', activated: 'Licensed & Activated', configured: 'Licensed & Activated', no: 'Not Installed', n: 'Not Installed', na: 'Not Installed', notinstalled: 'Not Installed' }, oneDrive: { yes: 'Configured & Syncing', y: 'Configured & Syncing', done: 'Configured & Syncing', ok: 'Configured & Syncing', installed: 'Configured & Syncing', activated: 'Configured & Syncing', configured: 'Configured & Syncing', no: 'Not Installed', n: 'Not Installed', na: 'Not Installed', notinstalled: 'Not Installed' },
+      domain: { domain: 'Domain (NRM)', yes: 'Domain (NRM)', nrm: 'Domain (NRM)', nrmorg: 'Domain (NRM)', no: 'Workgroup', workgroup: 'Workgroup' }
+    },
+    importMatch: ['userName', 'department', 'processor'], // rows without a hostname update the record with the same user + department + processor (and no hostname)
+    importBlank: { sccm: 'Not Installed', adUpdate: 'No', office365: 'Not Installed', oneDrive: 'Not Installed', gpu: 'N/A' }, // blank cell = not done yet
     cols: ['refNo', 'department', 'hostname', 'systemModel', 'processor', 'ram', 'storage', 'os', 'userName', 'sccm', 'adUpdate', 'office365', 'oneDrive', 'compliance'],
     filters: ['department', 'os', 'domain', 'sccm', 'adUpdate', 'office365', 'oneDrive'],
     flow: ['Add each user system', 'Tick SCCM / AD / Office 365 / OneDrive', 'Compliance column shows what is pending'],
@@ -299,7 +310,7 @@ export const MODS = {
       { t: 'sec', l: 'System' },
       { k: 'refNo', l: 'Sr. No.', ro: 1 },
       { k: 'department', l: 'Department', t: 'combo', o: 'departments', r: 1 },
-      { k: 'hostname', l: 'Hostname', r: 1, hint: 'Computer name, e.g. NRM-IT-PC01' },
+      { k: 'hostname', l: 'Hostname', hint: 'Computer name, e.g. NRM-IT-PC01 (can be filled in later; never the same on two rows)' },
       { k: 'systemModel', l: 'System Model', hint: 'e.g. Dell OptiPlex 7010, HP ProDesk 400 G9' },
       { k: 'assetId', l: 'Linked Asset (optional)', t: 'aref', cats: ['Desktop', 'Laptop', 'All-in-One', 'Thin Client', 'Server'], hint: 'Link to the asset record, if this computer is in Asset Inventory' },
       { k: 'locationId', l: 'Location', t: 'ref', c: 'locations' },

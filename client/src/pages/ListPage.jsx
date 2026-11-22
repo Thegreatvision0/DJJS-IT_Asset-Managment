@@ -6,6 +6,8 @@ import { ACTIONS, refOf } from '@shared/engine.js';
 import { api, useApp, Badge, downloadXLSX } from '../lib.jsx';
 import { navigate } from '../router.js';
 import RecordForm from '../components/RecordForm.jsx';
+import ImportDialog from '../components/ImportDialog.jsx';
+import { importable } from '@shared/importer.js';
 import { Cell, dispText, useRowAction } from '../components/Details.jsx';
 
 function listCols(mod, cat) {
@@ -85,6 +87,7 @@ export default function ListPage({ mod, params }) {
       {(m.filters || []).filter(k => !(isA && k === 'categoryId' && cat)).map(k => <select key={k} value={filters[k] || ''} onChange={e => setFilters({ ...filters, [k]: e.target.value })}><option value="">All {fmap[k].l}</option>{filterOpts(k).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>)}
       <span className="sp" /><span className="muted">{rows.length} record(s)</span>
       <button className="btn" onClick={exportXLSX} disabled={exporting}>{exporting ? 'Exporting…' : 'Export Excel'}</button>
+      {importable(mod) && can(mod, 'a') && <button className="btn" onClick={() => openModal(<ImportDialog mod={mod} />)}>Import Excel</button>}
       {can(mod, 'a') && <button className="btn pri" onClick={() => openModal(<RecordForm mod={mod} preset={cat ? { categoryId: cat } : undefined} />)}>+ New {cat || m.one}</button>}
     </div>
     <div className="tw"><table className="lst cards"><thead><tr>{cols.map(f => <th key={f.k} className="srt" onClick={() => setSort({ k: f.k, dir: sort.k === f.k ? -sort.dir : 1 })}>{f.l}{sort.k === f.k ? (sort.dir === -1 ? ' ▼' : ' ▲') : ''}</th>)}<th>Actions</th></tr></thead>
